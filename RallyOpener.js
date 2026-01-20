@@ -59,11 +59,15 @@ document.getElementById('tw_open_tabs_ui').remove();
 /* --- Build UI --- */
 var container = el('div',{id:'tw_open_tabs_ui', style:'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:99999;background:#1a1a1a;color:#fff;padding:0;border-radius:8px;font-family:Arial, Helvetica, sans-serif;font-size:13px;width:680px;box-shadow:0 8px 24px rgba(0,0,0,0.8);resize:both;overflow:auto;border:2px solid #333;'});
 
-var titleBar = el('div',{style:'cursor:move;padding:16px;background:linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);border-top-left-radius:6px;border-top-right-radius:6px;user-select:none;border-bottom:2px solid #444;'});
+// Create all buttons first before using them
+var btnConfig = el('button',{innerText:'⚙', title:'Config', style:'position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;padding:6px 10px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:4px;font-size:14px;z-index:10;', type:'button'});
+var closeBtn = el('button',{innerText:'✕', title:'Close', style:'position:absolute;right:0;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 10px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;font-size:16px;font-weight:bold;z-index:10;'});
+
+var titleBar = el('div',{style:'cursor:move;padding:16px;background:linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);border-top-left-radius:6px;border-top-right-radius:6px;user-select:none;border-bottom:2px solid #444;position:relative;'});
 var titleWrapper = el('div',{style:'text-align:center;position:relative;'});
 var title = el('div',{style:'font-size:22px;font-weight:bold;color:#e0e0e0;text-shadow:2px 2px 4px rgba(0,0,0,0.6);letter-spacing:1px;'});
 title.textContent = 'RALLY OPENER';
-var closeBtn = el('button',{innerText:'✕', title:'Close', style:'position:absolute;right:0;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 10px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;font-size:16px;font-weight:bold;'});
+titleBar.appendChild(btnConfig);
 titleWrapper.appendChild(title);
 titleWrapper.appendChild(closeBtn);
 titleBar.appendChild(titleWrapper);
@@ -94,28 +98,81 @@ toColumn.appendChild(toTextarea);
 columnsWrapper.appendChild(fromColumn);
 columnsWrapper.appendChild(toColumn);
 
-var row = el('div',{style:'display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;justify-content:center;'});
-body.appendChild(row);
+// Search fields for From and To
+var searchWrapper = el('div',{style:'display:flex;gap:12px;margin-bottom:12px;'});
+body.appendChild(searchWrapper);
 
-var btnCalculate = el('button',{innerText:'Calculate', style:'cursor:pointer;padding:8px 16px;background:#5a2a5a;color:#fff;border:1px solid #7a3a7a;border-radius:4px;font-weight:bold;', type:'button'});
+var fromSearchWrap = el('div',{style:'flex:1;display:flex;flex-direction:column;gap:4px;'});
+var fromSearchLabel = el('div',{style:'font-size:11px;color:#888;'});
+fromSearchLabel.textContent = 'Search FROM:';
+var fromSearchInput = el('input',{placeholder:'Search coords or names', style:'width:100%;padding:6px;background:#0f0f0f;color:#fff;border:1px solid #444;border-radius:4px;box-sizing:border-box;'});
+var fromSearchResults = el('div',{style:'position:relative;'});
+var fromDropdown = el('div',{style:'position:absolute;left:0;right:0;max-height:200px;overflow:auto;background:#1a1a1a;border:1px solid #444;border-radius:4px;padding:4px;display:none;z-index:100000;'});
+fromSearchResults.appendChild(fromDropdown);
+fromSearchWrap.appendChild(fromSearchLabel);
+fromSearchWrap.appendChild(fromSearchInput);
+fromSearchWrap.appendChild(fromSearchResults);
+
+var toSearchWrap = el('div',{style:'flex:1;display:flex;flex-direction:column;gap:4px;'});
+var toSearchLabel = el('div',{style:'font-size:11px;color:#888;'});
+toSearchLabel.textContent = 'Search TO:';
+var toSearchInput = el('input',{placeholder:'Search coords or names', style:'width:100%;padding:6px;background:#0f0f0f;color:#fff;border:1px solid #444;border-radius:4px;box-sizing:border-box;'});
+var toSearchResults = el('div',{style:'position:relative;'});
+var toDropdown = el('div',{style:'position:absolute;left:0;right:0;max-height:200px;overflow:auto;background:#1a1a1a;border:1px solid #444;border-radius:4px;padding:4px;display:none;z-index:100000;'});
+toSearchResults.appendChild(toDropdown);
+toSearchWrap.appendChild(toSearchLabel);
+toSearchWrap.appendChild(toSearchInput);
+toSearchWrap.appendChild(toSearchResults);
+
+searchWrapper.appendChild(fromSearchWrap);
+searchWrapper.appendChild(toSearchWrap);
+
+// Open Tabs section
+var openTabsSection = el('div',{style:'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;'});
+var openTabsTitle = el('div',{style:'font-weight:bold;margin-bottom:8px;color:#aaa;text-align:center;font-size:13px;'});
+openTabsTitle.textContent = 'Rally Point Opener';
+var openTabsRow = el('div',{style:'display:flex;gap:8px;justify-content:center;flex-wrap:wrap;'});
+openTabsSection.appendChild(openTabsTitle);
+openTabsSection.appendChild(openTabsRow);
+body.appendChild(openTabsSection);
+
+var btnOpenTabs = el('button',{innerText:'Open Tabs', style:'cursor:pointer;padding:8px 16px;background:#2a5a2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;font-weight:bold;', type:'button'});
 var btnTestData = el('button',{innerText:'Load Test Data', style:'cursor:pointer;padding:8px 16px;background:#2a4a5a;color:#fff;border:1px solid #3a6a7a;border-radius:4px;', type:'button'});
+openTabsRow.appendChild(btnOpenTabs);
+openTabsRow.appendChild(btnTestData);
+
+// Attack Plan section
+var attackPlanSection = el('div',{style:'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;'});
+var attackPlanTitle = el('div',{style:'font-weight:bold;margin-bottom:8px;color:#aaa;text-align:center;font-size:13px;'});
+attackPlanTitle.textContent = 'Attack Plans';
+var attackPlanRow = el('div',{style:'display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:8px;'});
+body.appendChild(attackPlanSection);
+attackPlanSection.appendChild(attackPlanTitle);
+attackPlanSection.appendChild(attackPlanRow);
+
 var btnPasteAttackPlan = el('button',{innerText:'Paste Attack Plan', style:'cursor:pointer;padding:8px 16px;background:#5a3a2a;color:#fff;border:1px solid #7a5a3a;border-radius:4px;', type:'button'});
 var btnLoadAttackPlan = el('button',{innerText:'Load Attack Plan', style:'cursor:pointer;padding:8px 16px;background:#3a2a5a;color:#fff;border:1px solid #5a3a7a;border-radius:4px;', type:'button'});
-var btnConfig = el('button',{innerText:'⚙', title:'Config', style:'cursor:pointer;padding:8px 12px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:4px;font-size:16px;', type:'button'});
-var btnGet = el('button',{innerText:'Get village.txt', style:'cursor:pointer;padding:8px 16px;background:#2a4a5a;color:#fff;border:1px solid #3a6a7a;border-radius:4px;'});
+attackPlanRow.appendChild(btnPasteAttackPlan);
+attackPlanRow.appendChild(btnLoadAttackPlan);
 
-row.appendChild(btnCalculate);
-row.appendChild(btnTestData);
-row.appendChild(btnPasteAttackPlan);
-row.appendChild(btnLoadAttackPlan);
-row.appendChild(btnConfig);
-row.appendChild(btnGet);
+var attackPlanContainer = el('div',{id:'attack_plan_groups', style:'display:none;margin-top:8px;'});
+attackPlanSection.appendChild(attackPlanContainer);
 
-var openTabsContainer = el('div',{style:'margin-bottom:12px;text-align:center;'});
-body.appendChild(openTabsContainer);
+// Village.txt utilities (minimized footer section)
+var utilsSection = el('div',{style:'margin-bottom:8px;padding:8px;background:#0a0a0a;border-radius:4px;border:1px solid #222;'});
+var utilsRow = el('div',{style:'display:flex;gap:6px;justify-content:center;flex-wrap:wrap;align-items:center;'});
+var utilsLabel = el('span',{style:'font-size:11px;color:#666;margin-right:8px;'});
+utilsLabel.textContent = 'Village data:';
+body.appendChild(utilsSection);
+utilsSection.appendChild(utilsRow);
+utilsRow.appendChild(utilsLabel);
 
-var attackPlanContainer = el('div',{id:'attack_plan_groups', style:'margin-bottom:12px;display:none;'});
-body.appendChild(attackPlanContainer);
+var btnGet = el('button',{innerText:'Get village.txt', style:'cursor:pointer;padding:4px 10px;background:#2a2a2a;color:#999;border:1px solid #3a3a3a;border-radius:3px;font-size:11px;', type:'button'});
+var btnUpload = el('button',{innerText:'Upload village.txt', style:'cursor:pointer;padding:4px 10px;background:#2a2a2a;color:#999;border:1px solid #3a3a3a;border-radius:3px;font-size:11px;', type:'button'});
+var fileInput = el('input',{type:'file', accept:'.txt', style:'display:none'});
+utilsRow.appendChild(btnGet);
+utilsRow.appendChild(btnUpload);
+utilsRow.appendChild(fileInput);
 
 msgBox = el('div',{style:'margin-bottom:12px;color:#9f9f9f;min-height:18px;text-align:center;padding:6px;background:#0a0a0a;border-radius:4px;border:1px solid #2a2a2a;'});
 body.appendChild(msgBox);
@@ -128,8 +185,132 @@ container.appendChild(footer);
 
 document.body.appendChild(container);
 
+// Make draggable - fixed version
+(function(){
+var isDragging = false;
+var startX = 0;
+var startY = 0;
+var initialLeft = 0;
+var initialTop = 0;
+
+titleBar.onmousedown = function(e) {
+e = e || window.event;
+var target = e.target || e.srcElement;
+if(target === closeBtn || target === btnConfig) return;
+e.preventDefault();
+isDragging = true;
+startX = e.clientX;
+startY = e.clientY;
+var rect = container.getBoundingClientRect();
+initialLeft = rect.left;
+initialTop = rect.top;
+document.onmousemove = onMouseMove;
+document.onmouseup = onMouseUp;
+};
+
+function onMouseMove(e) {
+if(!isDragging) return;
+e = e || window.event;
+e.preventDefault();
+var deltaX = e.clientX - startX;
+var deltaY = e.clientY - startY;
+container.style.left = (initialLeft + deltaX) + 'px';
+container.style.top = (initialTop + deltaY) + 'px';
+container.style.transform = 'none';
+}
+
+function onMouseUp() {
+isDragging = false;
+document.onmousemove = null;
+document.onmouseup = null;
+}
+})();
+
 // Close button
 closeBtn.addEventListener('click', function(){ container.parentNode && container.parentNode.removeChild(container); });
+
+// Upload button
+btnUpload.addEventListener('click', function(){ try{ fileInput.click(); }catch(e){} });
+
+fileInput.addEventListener('change', function(ev){
+var f = ev.target.files && ev.target.files[0];
+if(!f) return;
+var r = new FileReader();
+r.onload = function(){ 
+try{ 
+saveVillagesText(String(r.result)); 
+villagesArr = parseVillagesTxt(String(r.result)); 
+villagesIndex = buildCoordIndex(villagesArr); 
+showMessage('village.txt uploaded (' + villagesArr.length + ' entries)'); 
+}catch(e){ 
+showMessage('Failed to parse uploaded file'); 
+} 
+};
+r.onerror = function(){ showMessage('Failed to read file'); };
+r.readAsText(f);
+fileInput.value = '';
+});
+
+// Search functionality
+function setupSearch(inputEl, dropdownEl, targetTextarea){
+var searchTimeout = 0;
+inputEl.addEventListener('input', function(){
+if(searchTimeout) clearTimeout(searchTimeout);
+searchTimeout = setTimeout(function(){
+var q = (inputEl.value||'').trim().toLowerCase();
+if(!q){ dropdownEl.style.display='none'; dropdownEl.innerHTML=''; return; }
+if(!villagesArr || villagesArr.length===0){ 
+dropdownEl.style.display='block'; 
+dropdownEl.innerHTML = '<div style="padding:6px;color:#888;">No village.txt loaded</div>'; 
+return; 
+}
+var results=[];
+for(var i=0;i<villagesArr.length;i++){
+if(results.length>=50) break;
+var v = villagesArr[i];
+var coord = coordKey(v.x,v.y);
+if(coord.indexOf(q)!==-1 || String(v.x).indexOf(q)!==-1 || String(v.y).indexOf(q)!==-1 || (v.name && v.name.toLowerCase().indexOf(q)!==-1)){
+results.push(v);
+}
+}
+if(results.length===0){ 
+dropdownEl.style.display='block'; 
+dropdownEl.innerHTML = '<div style="padding:6px;color:#888;">No matches</div>'; 
+return; 
+}
+dropdownEl.style.display='block';
+dropdownEl.innerHTML='';
+for(var j=0;j<Math.min(results.length,50);j++){
+(function(r){
+var item = el('div',{style:'padding:6px;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer;transition:background 0.2s;'});
+item.innerHTML = '<span style="color:#4a9eff;">' + r.x + '|' + r.y + '</span> — <span style="color:#bbb;">' + r.name + '</span>';
+item.addEventListener('mouseenter', function(){ item.style.background = '#2a2a2a'; });
+item.addEventListener('mouseleave', function(){ item.style.background = 'transparent'; });
+item.addEventListener('click', function(){
+var coordText = r.x + '|' + r.y;
+var currentVal = targetTextarea.value.trim();
+var lines = currentVal ? currentVal.split('\n') : [];
+lines.push(coordText);
+targetTextarea.value = lines.join('\n');
+dropdownEl.style.display='none';
+inputEl.value = '';
+});
+dropdownEl.appendChild(item);
+})(results[j]);
+}
+}, 120);
+});
+}
+
+setupSearch(fromSearchInput, fromDropdown, fromTextarea);
+setupSearch(toSearchInput, toDropdown, toTextarea);
+
+document.addEventListener('click', function(ev){ 
+if(!container.contains(ev.target)) { 
+fromDropdown.style.display='none'; 
+toDropdown.style.display='none';
+} 
+});
 
 // Data
 var villagesArr = parseVillagesTxt(loadVillagesText());
@@ -321,9 +502,6 @@ return groups;
 function createGroupButtons(){
 attackPlanContainer.innerHTML = '';
 attackPlanContainer.style.display = 'block';
-var groupTitle = el('div',{style:'font-weight:bold;margin-bottom:8px;color:#aaa;text-align:center;font-size:14px;'});
-groupTitle.textContent = 'Attack Plan Groups';
-attackPlanContainer.appendChild(groupTitle);
 var groupKeys = Object.keys(attackPlanGroups).sort(function(a,b){ return Number(a) - Number(b); });
 for(var i=0;i<groupKeys.length;i++){
 var groupNum = groupKeys[i];
@@ -420,49 +598,38 @@ console.log('Opened attack ' + (idx + 1) + ' at ' + new Date().getTime());
 }
 
 // Button handlers
-btnCalculate.onclick = function(){
-console.log('Calculate clicked');
-let fromCoords = parseCoordinateList(fromTextarea.value);
-let toCoords = parseCoordinateList(toTextarea.value);
+btnOpenTabs.onclick = function(){
+console.log('Open Tabs clicked');
+var fromCoords = parseCoordinateList(fromTextarea.value);
+var toCoords = parseCoordinateList(toTextarea.value);
+console.log('From coords:', fromCoords);
+console.log('To coords:', toCoords);
 if(fromCoords.length === 0 || toCoords.length === 0){ 
 showMessage('Please enter coordinates in both FROM and TO columns'); 
 return; 
 }
-let preparedUrls = prepareTabsFromPairs(fromCoords, toCoords);
-if(preparedUrls.length === 0) return;
-
-openTabsContainer.innerHTML = '';
-let btnOpen = document.createElement('button');
-btnOpen.innerText = 'Open ' + preparedUrls.length + ' Tabs';
-btnOpen.className = 'btn evt-confirm-btn btn-confirm-yes open_tab';
-btnOpen.style.cssText = 'cursor:pointer;padding:10px 20px;background:#2a5a2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;font-weight:bold;font-size:16px;';
-btnOpen.onclick = function(){
-console.log('Opening tabs NOW');
-let current_hrefs = preparedUrls;
-btnOpen.classList.remove("evt-confirm-btn");
-btnOpen.classList.remove("btn-confirm-yes");
-btnOpen.classList.add("btn-confirm-no");
-let delayTab = 200;
-for(let j=0;j<current_hrefs.length;j++){
-window.setTimeout(()=>{
-window.open(current_hrefs[j], '_blank');
-console.log(new Date().getTime());
-}, delayTab*j);
+var preparedUrls = prepareTabsFromPairs(fromCoords, toCoords);
+console.log('PreparedUrls:', preparedUrls.length);
+if(preparedUrls.length === 0){
+return;
 }
-document.querySelectorAll('.open_tab').forEach(btn => btn.disabled = true);
-window.setTimeout(()=>{
-document.querySelectorAll('.open_tab').forEach(btn => btn.disabled = false);
-}, delayTab*current_hrefs.length);
-};
-openTabsContainer.appendChild(btnOpen);
-showMessage('Ready! Click "Open ' + preparedUrls.length + ' Tabs" button');
+
+showMessage('Opening ' + preparedUrls.length + ' tabs...');
+var delayTab = 200;
+for(var j=0;j<preparedUrls.length;j++){
+(function(url, idx){
+window.setTimeout(function(){
+window.open(url, '_blank');
+console.log('Opened tab ' + (idx + 1) + ' at ' + new Date().getTime());
+}, delayTab * idx);
+})(preparedUrls[j], j);
+}
 };
 
 btnTestData.onclick = function(){
 fromTextarea.value = '524|496\n524|496\n524|496';
 toTextarea.value = '523|496\n525|496\n522|495';
 showMessage('Test data loaded');
-openTabsContainer.innerHTML = '';
 };
 
 btnPasteAttackPlan.onclick = function(){
@@ -484,7 +651,7 @@ console.error(e);
 
 btnLoadAttackPlan.onclick = function(){
 var url = attackPlanConfig.defaultUrl;
-showMessage('Loading attack plans from GitHub...');
+showMessage('Loading attack plans...');
 fetch(url)
 .then(function(r){ return r.json(); })
 .then(function(files){
