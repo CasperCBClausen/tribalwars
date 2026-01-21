@@ -57,7 +57,7 @@ document.getElementById('tw_open_tabs_ui').remove();
 }
 
 /* --- Build UI --- */
-var container = el('div',{id:'tw_open_tabs_ui', style:'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:99999;background:#1a1a1a;color:#fff;padding:0;border-radius:8px;font-family:Arial, Helvetica, sans-serif;font-size:13px;width:680px;box-shadow:0 8px 24px rgba(0,0,0,0.8);resize:both;overflow:auto;border:2px solid #333;'});
+var container = el('div',{id:'tw_open_tabs_ui', style:'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:99999;background:#1a1a1a;color:#fff;padding:0;border-radius:8px;font-family:Arial, Helvetica, sans-serif;font-size:13px;width:880px;box-shadow:0 8px 24px rgba(0,0,0,0.8);resize:both;overflow:auto;border:2px solid #333;'});
 
 // Create all buttons first before using them
 var btnConfig = el('button',{innerText:'⚙', title:'Config', style:'position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;padding:6px 10px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:4px;font-size:14px;z-index:10;', type:'button'});
@@ -76,8 +76,17 @@ container.appendChild(titleBar);
 var body = el('div',{style:'padding:16px;display:block;'});
 container.appendChild(body);
 
+// Rally Point Opener section with FROM/TO coordinates
+var rallySection = el('div',{style:'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;position:relative;'});
+var rallySectionTitle = el('div',{style:'font-weight:bold;margin-bottom:8px;color:#aaa;text-align:center;font-size:13px;'});
+rallySectionTitle.textContent = 'Rally Point Opener';
+rallySection.appendChild(rallySectionTitle);
+
+var btnTestData = el('button',{innerText:'Test', title:'Load Test Data', style:'position:absolute;top:8px;right:8px;cursor:pointer;padding:4px 8px;background:#2a4a5a;color:#fff;border:1px solid #3a6a7a;border-radius:3px;font-size:11px;', type:'button'});
+rallySection.appendChild(btnTestData);
+
 var columnsWrapper = el('div',{style:'display:flex;gap:12px;margin-bottom:12px;'});
-body.appendChild(columnsWrapper);
+rallySection.appendChild(columnsWrapper);
 
 var fromColumn = el('div',{style:'flex:1;display:flex;flex-direction:column;'});
 var toColumn = el('div',{style:'flex:1;display:flex;flex-direction:column;'});
@@ -100,7 +109,7 @@ columnsWrapper.appendChild(toColumn);
 
 // Search fields for From and To
 var searchWrapper = el('div',{style:'display:flex;gap:12px;margin-bottom:12px;'});
-body.appendChild(searchWrapper);
+rallySection.appendChild(searchWrapper);
 
 var fromSearchWrap = el('div',{style:'flex:1;display:flex;flex-direction:column;gap:4px;'});
 var fromSearchLabel = el('div',{style:'font-size:11px;color:#888;'});
@@ -127,19 +136,13 @@ toSearchWrap.appendChild(toSearchResults);
 searchWrapper.appendChild(fromSearchWrap);
 searchWrapper.appendChild(toSearchWrap);
 
-// Open Tabs section
-var openTabsSection = el('div',{style:'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;'});
-var openTabsTitle = el('div',{style:'font-weight:bold;margin-bottom:8px;color:#aaa;text-align:center;font-size:13px;'});
-openTabsTitle.textContent = 'Rally Point Opener';
-var openTabsRow = el('div',{style:'display:flex;gap:8px;justify-content:center;flex-wrap:wrap;'});
-openTabsSection.appendChild(openTabsTitle);
-openTabsSection.appendChild(openTabsRow);
-body.appendChild(openTabsSection);
-
-var btnOpenTabs = el('button',{innerText:'Open Tabs', style:'cursor:pointer;padding:8px 16px;background:#2a5a2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;font-weight:bold;', type:'button'});
-var btnTestData = el('button',{innerText:'Load Test Data', style:'cursor:pointer;padding:8px 16px;background:#2a4a5a;color:#fff;border:1px solid #3a6a7a;border-radius:4px;', type:'button'});
+// Open Tabs button centered below search
+var openTabsRow = el('div',{style:'display:flex;gap:8px;justify-content:center;'});
+var btnOpenTabs = el('button',{innerText:'Open Tabs', style:'cursor:pointer;padding:10px 24px;background:#2a5a2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;font-weight:bold;font-size:14px;', type:'button'});
 openTabsRow.appendChild(btnOpenTabs);
-openTabsRow.appendChild(btnTestData);
+rallySection.appendChild(openTabsRow);
+
+body.appendChild(rallySection);
 
 // Attack Plan section
 var attackPlanSection = el('div',{style:'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;'});
@@ -185,7 +188,7 @@ container.appendChild(footer);
 
 document.body.appendChild(container);
 
-// Make draggable - fixed version
+// Make draggable
 (function(){
 var isDragging = false;
 var startX = 0;
@@ -509,7 +512,7 @@ var group = attackPlanGroups[groupNum];
 var btnGroup = document.createElement('button');
 btnGroup.className = 'group-btn';
 btnGroup.dataset.group = groupNum;
-btnGroup.style.cssText = 'cursor:pointer;padding:10px 20px;background:#3a5a3a;color:#fff;border:1px solid #4a7a4a;border-radius:4px;font-weight:bold;margin:5px;display:inline-block;min-width:150px;';
+btnGroup.style.cssText = 'cursor:pointer;padding:10px 20px;background:#3a5a3a;color:#fff;border:1px solid #4a7a4a;border-radius:4px;font-weight:bold;margin:5px;display:inline-block;min-width:180px;';
 var attackCount = group.attacks.length;
 btnGroup.innerHTML = 'Group ' + groupNum + '<br><span style="font-size:11px;">(' + attackCount + ' attack' + (attackCount > 1 ? 's' : '') + ')</span>';
 if(group.launchTime){
