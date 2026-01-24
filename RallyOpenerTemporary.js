@@ -6,8 +6,9 @@ window.__tw_helper_loaded = true;
 var currentUrl = window.location.href;
 var isOverviewPage = currentUrl.indexOf('screen=overview_villages') !== -1 && currentUrl.indexOf('mode=combined') !== -1;
 
+var confirmRedirect = false;
 if(!isOverviewPage){
-var confirmRedirect = confirm('Rally Opener works best on the Combined Village Overview page.\n\nWould you like to be redirected there now?');
+confirmRedirect = confirm('Rally Opener works best on the Combined Village Overview page.\n\nWould you like to be redirected there now?');
 if(confirmRedirect){
 try{
 var baseUrl = window.location.origin + window.location.pathname;
@@ -16,10 +17,11 @@ window.location.href = newUrl;
 }catch(e){
 alert('Could not redirect. Please navigate to:\nOverview → Combined → Village Overview');
 }
-} else {
-alert('Script will continue, but unit templates may not work correctly.\n\nFor best results, use on: Overview → Combined → Village Overview');
 }
 }
+
+// Only continue if on correct page or user chose to stay
+if(isOverviewPage || !confirmRedirect){
 
 /* --- Utilities --- */
 function qs(sel,root){ root = root || document; return root.querySelector(sel); }
@@ -78,466 +80,15 @@ document.getElementById('tw_open_tabs_ui').remove();
 /* --- Build UI --- */
 var container = el('div',{id:'tw_open_tabs_ui', style:'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:99999;background:#1a1a1a;color:#fff;padding:0;border-radius:8px;font-family:Arial, Helvetica, sans-serif;font-size:13px;width:880px;box-shadow:0 8px 24px rgba(0,0,0,0.8);resize:both;overflow:auto;border:2px solid #333;'});
 
-// Create all buttons first before using them
-btnDeleteTemplate.onclick = function(){
-var selected = templateSelect.value;
-if(!selected){
-showMessage('Please select a template to delete');
-return;
-}
-if(confirm('Delete template "' + selected + '"?')){
-delete unitTemplates[selected];
-saveTemplates();
-if(currentTemplate === selected) currentTemplate = null;
-refreshTemplateSelect();
-showMessage('Template deleted');
-}
-};
-
-templateSelect.onchange = function(){
-currentTemplate = templateSelect.value || null;
-if(currentTemplate){
-showMessage('Template "' + currentTemplate + '" selected');
-} else {
-showMessage('No template selected');
-}
-};
-
-// Load templates on start
-loadTemplates();
-refreshTemplateSelect();
-
-// Function to build URL with unit template
-function buildRallyUrlWithTemplate(forVillageId, targetVillageId){
-var baseUrl = buildRallyUrl(forVillageId, targetVillageId);
-  
-if(!currentTemplate || !unitTemplates[currentTemplate]){
-return baseUrl;
-}
-  
-// Add template data to URL as a hash fragment that our script can read
-var templateData = encodeURIComponent(JSON.stringify({
-template: currentTemplate,
-config: unitTemplates[currentTemplate]
-}));
-  
-return baseUrl + '#twtemplate=' + templateData;
-}
-
-function parseCoordinateList(text){
-if(!text) return [];
-var lines = text.trim().split(/\r?\n/);
-var coords = [];
-for(var i=0;i<lines.length;i++){
-var line = lines[i].trim();
-if(!line) continue;
-line = line.replace(',', '|');
-if(line.match(/\d+\|\d+/)){
-coords.push(line);
-}
-}
-return coords;
-}
-
-function coordToVillageId(coord){
-if(!coord) return null;
-var m = coord.match(/(\d+)\|(\d+)/);
-if(!m) return null;
-var key = coordKey(Number(m[1]), Number(m[2]));
-var v = lookupIndex(villagesIndex, key);
-return v ? v.id : null;
-}
-
-function buildRallyUrl(forVillageId, targetVillageId){
-try{
-var u = new URL(location.href);
-u.searchParams.set('screen','place');
-u.searchParams.set('village', forVillageId);
-u.searchParams.set('target', targetVillageId);
-return u.toString();
-}catch(e){
-return location.origin + '/game.php?village=' + encodeURIComponent(forVillageId) + '&screen=place&target=' + encodeURIComponent(targetVillageId);
-}
-}
-
-function prepareTabsFromPairs(fromCoords, toCoords){
-var maxLen = Math.max(fromCoords.length, toCoords.length);
-var urls = [];
-var failed = [];
-for(var i=0;i<maxLen;i++){
-var fromCoord = fromCoords[i] || null;
-var toCoord = toCoords[i] || null;
-if(!fromCoord || !toCoord){ 
-failed.push('Row ' + (i+1) + ': missing From or To coordinate');
-continue; 
-}
-var fromId = coordToVillageId(fromCoord);
-var toId = coordToVillageId(toCoord);
-if(!fromId || !toId){ 
-failed.push('Row ' + (i+1) + ': village not found for ' + fromCoord + ' -> ' + toCoord);
-continue; 
-}
-var url = buildRallyUrlWithTemplate(fromId, toId);
-urls.push(url);
-}
-if(urls.length === 0){
-showMessage('No valid pairs found - check your coordinates');
-if(failed.length > 0){
-console.log('Rally Opener failures:', failed);
-}
-return [];
-}
-showMessage('Prepared ' + urls.length + ' tab' + (urls.length > 1 ? 's' : '') + ' - ready to open!');
-if(failed.length > 0){
-console.log('Rally Opener warnings:', failed);
-}
-return urls;
-}
-
-// Attack Plan functions
-var attackPlanGroups = {};
-var attackPlanConfig = {
-defaultUrl: 'https://api.github.com/repos/CasperCBClausen/tribalwars/contents/Attackplans'
-};
-
-function loadConfig(){
-try{
-var saved = localStorage.getItem('tw_rally_config');
-if(saved){
-var config = JSON.parse(saved);
-attackPlanConfig.defaultUrl = config.defaultUrl || attackPlanConfig.defaultUrl;
-}
-}catch(e){}
-}
-
-function saveConfig(){
-try{
-localStorage.setItem('tw_rally_config', JSON.stringify(attackPlanConfig));
-}catch(e){}
-}
-
-loadConfig();
-
-function parseAttackPlan(text){
-console.log('Parsing attack plan, text length:', text.length);
-var lines = text.split(/\r?\n/).filter(function(l){ return l.trim(); });
-console.log('Lines found:', lines.length);
-var groups = {};
-for(var i=0;i<lines.length;i++){
-var line = lines[i].trim();
-if(!line || line.match(/^-+$/)) continue;
-if(line.match(/Group.*From.*To/i)){
-console.log('Skipping header line');
-continue;
-}
-var parts = line.split(/\s{2,}|\t/);
-console.log('Line parts:', parts);
-if(parts.length < 3) continue;
-var groupNum = parts[0].trim();
-var fromVillage = parts[1].trim();
-var toTarget = parts[2].trim();
-console.log('Parsed:', groupNum, fromVillage, toTarget);
-if(!groupNum.match(/^\d+$/)){
-console.log('Group number invalid:', groupNum);
-continue;
-}
-if(!fromVillage.match(/\d+\|\d+/)){
-console.log('From village invalid:', fromVillage);
-continue;
-}
-if(!toTarget.match(/\d+\|\d+/)){
-console.log('To target invalid:', toTarget);
-continue;
-}
-var launchTime = null;
-if(parts.length >= 6){
-var launchStr = parts[5].trim();
-if(launchStr.match(/\d{4}-\d{2}-\d{2}/)){
-launchTime = new Date(launchStr);
-console.log('Launch time:', launchTime);
-}
-}
-if(!groups[groupNum]){
-groups[groupNum] = {
-attacks: [],
-launchTime: launchTime
-};
-}
-groups[groupNum].attacks.push({
-from: fromVillage,
-to: toTarget
-});
-}
-console.log('Groups parsed:', Object.keys(groups).length, groups);
-return groups;
-}
-
-function parseHTMLAttackPlan(html){
-var parser = new DOMParser();
-var doc = parser.parseFromString(html, 'text/html');
-var rows = doc.querySelectorAll('table tbody tr');
-var groups = {};
-for(var i=0;i<rows.length;i++){
-var cells = rows[i].querySelectorAll('td');
-if(cells.length < 3) continue;
-var groupNum = cells[0].textContent.trim();
-var fromVillage = cells[1].textContent.trim();
-var toTarget = cells[2].textContent.trim();
-if(!groupNum.match(/^\d+$/)) continue;
-if(!fromVillage.match(/\d+\|\d+/)) continue;
-if(!toTarget.match(/\d+\|\d+/)) continue;
-var launchTime = null;
-if(cells.length >= 6){
-var launchStr = cells[5].textContent.trim();
-if(launchStr.match(/\d{4}-\d{2}-\d{2}/)){
-launchTime = new Date(launchStr);
-}
-}
-if(!groups[groupNum]){
-groups[groupNum] = {
-attacks: [],
-launchTime: launchTime
-};
-}
-groups[groupNum].attacks.push({
-from: fromVillage,
-to: toTarget
-});
-}
-return groups;
-}
-
-function createGroupButtons(){
-attackPlanContainer.innerHTML = '';
-attackPlanContainer.style.display = 'block';
-var groupKeys = Object.keys(attackPlanGroups).sort(function(a,b){ return Number(a) - Number(b); });
-for(var i=0;i<groupKeys.length;i++){
-var groupNum = groupKeys[i];
-var group = attackPlanGroups[groupNum];
-var btnGroup = document.createElement('button');
-btnGroup.className = 'group-btn';
-btnGroup.dataset.group = groupNum;
-btnGroup.style.cssText = 'cursor:pointer;padding:10px 20px;background:#3a5a3a;color:#fff;border:1px solid #4a7a4a;border-radius:4px;font-weight:bold;margin:5px;display:inline-block;min-width:180px;';
-var attackCount = group.attacks.length;
-btnGroup.innerHTML = 'Group ' + groupNum + '<br><span style="font-size:11px;">(' + attackCount + ' attack' + (attackCount > 1 ? 's' : '') + ')</span>';
-if(group.launchTime){
-var now = new Date();
-var isExpired = group.launchTime <= now;
-var countdownSpan = document.createElement('span');
-countdownSpan.className = 'countdown';
-countdownSpan.style.cssText = 'font-size:10px;display:block;margin-top:4px;';
-if(isExpired){
-countdownSpan.textContent = 'LAUNCH EXCEEDED';
-countdownSpan.style.color = '#ff4444';
-countdownSpan.style.fontWeight = 'bold';
-} else {
-countdownSpan.textContent = 'Calculating...';
-countdownSpan.style.color = '#aaffaa';
-}
-btnGroup.appendChild(document.createElement('br'));
-btnGroup.appendChild(countdownSpan);
-}
-btnGroup.onclick = (function(grp){
-return function(){
-openGroupAttacks(grp);
-};
-})(group);
-attackPlanContainer.appendChild(btnGroup);
-}
-startCountdowns();
-}
-
-function startCountdowns(){
-if(window._countdownInterval){
-clearInterval(window._countdownInterval);
-}
-window._countdownInterval = setInterval(function(){
-var countdowns = document.querySelectorAll('.countdown');
-for(var i=0;i<countdowns.length;i++){
-var btn = countdowns[i].closest('.group-btn');
-if(!btn) continue;
-var groupNum = btn.dataset.group;
-var group = attackPlanGroups[groupNum];
-if(!group || !group.launchTime) continue;
-var now = new Date();
-var diff = group.launchTime - now;
-if(diff <= 0){
-countdowns[i].textContent = 'LAUNCH EXCEEDED';
-countdowns[i].style.color = '#ff4444';
-countdowns[i].style.fontWeight = 'bold';
-continue;
-}
-var hours = Math.floor(diff / 3600000);
-var minutes = Math.floor((diff % 3600000) / 60000);
-var seconds = Math.floor((diff % 60000) / 1000);
-countdowns[i].textContent = hours + 'h ' + minutes + 'm ' + seconds + 's';
-countdowns[i].style.color = '#aaffaa';
-}
-}, 1000);
-}
-
-function openGroupAttacks(group){
-var attacks = group.attacks;
-var urls = [];
-for(var i=0;i<attacks.length;i++){
-var fromId = coordToVillageId(attacks[i].from);
-var toId = coordToVillageId(attacks[i].to);
-if(!fromId || !toId){
-console.log('Could not find village ID for', attacks[i].from, '->', attacks[i].to);
-continue;
-}
-var url = buildRallyUrlWithTemplate(fromId, toId);
-urls.push(url);
-}
-if(urls.length === 0){
-showMessage('No valid attacks in this group');
-return;
-}
-showMessage('Opening ' + urls.length + ' tabs for group...');
-var delayTab = 200;
-for(var j=0;j<urls.length;j++){
-(function(url, idx){
-window.setTimeout(function(){
-window.open(url, '_blank');
-console.log('Opened attack ' + (idx + 1) + ' at ' + new Date().getTime());
-}, delayTab * idx);
-})(urls[j], j);
-}
-}
-
-// Button handlers
-btnOpenTabs.onclick = function(){
-console.log('Open Tabs clicked');
-var fromCoords = parseCoordinateList(fromTextarea.value);
-var toCoords = parseCoordinateList(toTextarea.value);
-console.log('From coords:', fromCoords);
-console.log('To coords:', toCoords);
-if(fromCoords.length === 0 || toCoords.length === 0){ 
-showMessage('Please enter coordinates in both FROM and TO columns'); 
-return; 
-}
-var preparedUrls = prepareTabsFromPairs(fromCoords, toCoords);
-console.log('PreparedUrls:', preparedUrls.length);
-if(preparedUrls.length === 0){
-return;
-}
-
-showMessage('Opening ' + preparedUrls.length + ' tabs...');
-var delayTab = 200;
-for(var j=0;j<preparedUrls.length;j++){
-(function(url, idx){
-window.setTimeout(function(){
-window.open(url, '_blank');
-console.log('Opened tab ' + (idx + 1) + ' at ' + new Date().getTime());
-}, delayTab * idx);
-})(preparedUrls[j], j);
-}
-};
-
-btnTestData.onclick = function(){
-fromTextarea.value = '524|496\n524|496\n524|496';
-toTextarea.value = '523|496\n525|496\n522|495';
-showMessage('Test data loaded');
-};
-
-btnPasteAttackPlan.onclick = function(){
-var pasteArea = prompt('Paste your attack plan (ASCII or copied from HTML table):');
-if(!pasteArea) return;
-try{
-attackPlanGroups = parseAttackPlan(pasteArea);
-if(Object.keys(attackPlanGroups).length === 0){
-showMessage('No valid groups found in attack plan');
-return;
-}
-createGroupButtons();
-showMessage('Loaded ' + Object.keys(attackPlanGroups).length + ' groups from attack plan');
-}catch(e){
-showMessage('Error parsing attack plan: ' + e.message);
-console.error(e);
-}
-};
-
-btnLoadAttackPlan.onclick = function(){
-var url = attackPlanConfig.defaultUrl;
-showMessage('Loading attack plans...');
-fetch(url)
-.then(function(r){ return r.json(); })
-.then(function(files){
-var htmlFiles = files.filter(function(f){ return f.name.match(/\.html$/i); });
-if(htmlFiles.length === 0){
-showMessage('No HTML attack plans found');
-return;
-}
-var fileList = htmlFiles.map(function(f, idx){ return (idx+1) + '. ' + f.name; }).join('\n');
-var choice = prompt('Choose an attack plan:\n\n' + fileList + '\n\nEnter number (1-' + htmlFiles.length + '):');
-if(!choice) return;
-var fileIdx = parseInt(choice) - 1;
-if(fileIdx < 0 || fileIdx >= htmlFiles.length){
-showMessage('Invalid choice');
-return;
-}
-var selectedFile = htmlFiles[fileIdx];
-showMessage('Loading ' + selectedFile.name + '...');
-return fetch(selectedFile.download_url);
-})
-.then(function(r){ if(r) return r.text(); })
-.then(function(html){
-if(!html) return;
-attackPlanGroups = parseHTMLAttackPlan(html);
-if(Object.keys(attackPlanGroups).length === 0){
-showMessage('No valid groups found in attack plan');
-return;
-}
-createGroupButtons();
-showMessage('Loaded ' + Object.keys(attackPlanGroups).length + ' groups from attack plan');
-})
-.catch(function(err){
-showMessage('Error loading attack plan: ' + err.message);
-console.error(err);
-});
-};
-
-btnConfig.onclick = function(){
-var newUrl = prompt('Enter the URL to fetch attack plans from:\n\nThis should be an API endpoint that returns a list of HTML files.\n\nFor GitHub: https://api.github.com/repos/USER/REPO/contents/FOLDER\nFor other services: provide the appropriate API URL\n\nCurrent URL:', attackPlanConfig.defaultUrl);
-if(newUrl && newUrl.trim()){
-attackPlanConfig.defaultUrl = newUrl.trim();
-saveConfig();
-showMessage('Config saved');
-}
-};
-
-btnGet.onclick = function(){
-var lastFetch = localStorage.getItem('tw_villages_updated');
-var now = Date.now();
-var oneHour = 60 * 60 * 1000;
-if(lastFetch){
-var timeSince = now - Number(lastFetch);
-if(timeSince < oneHour){
-var minutesLeft = Math.ceil((oneHour - timeSince) / 60000);
-var confirmed = confirm('WARNING: Script rules require at least 1 hour between fetches.\n\nLast fetch: ' + Math.floor(timeSince / 60000) + ' min ago.\nWait ' + minutesLeft + ' more min.\n\nFetch anyway?');
-if(!confirmed) return;
-}
-}
-showMessage('Fetching village.txt...');
-tryFetchVillagesFromServer().then(function(txt){
-if(!txt) throw new Error('Empty');
-saveVillagesText(txt);
-villagesArr = parseVillagesTxt(txt);
-villagesIndex = buildCoordIndex(villagesArr);
-showMessage('village.txt saved (' + villagesArr.length + ' entries)');
-}).catch(function(err){
-showMessage('Failed: ' + (err && err.message ? err.message : String(err)));
-});
-};
-
-showMessage('Rally Opener ready!');
-}Config = el('button',{innerText:'⚙', title:'Config', style:'position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;padding:6px 10px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:4px;font-size:14px;z-index:10;', type:'button'});
-var closeBtn = el('button',{innerText:'✕', title:'Close', style:'position:absolute;right:0;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 10px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;font-size:16px;font-weight:bold;z-index:10;'});
-
 var titleBar = el('div',{style:'cursor:move;padding:16px;background:linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);border-top-left-radius:6px;border-top-right-radius:6px;user-select:none;border-bottom:2px solid #444;position:relative;'});
 var titleWrapper = el('div',{style:'text-align:center;position:relative;'});
 var title = el('div',{style:'font-size:22px;font-weight:bold;color:#e0e0e0;text-shadow:2px 2px 4px rgba(0,0,0,0.6);letter-spacing:1px;'});
 title.textContent = 'RALLY OPENER';
+
+// Create buttons for title bar
+var btnConfig = el('button',{innerText:'⚙', title:'Config', style:'position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;padding:6px 10px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:4px;font-size:14px;z-index:10;', type:'button'});
+var closeBtn = el('button',{innerText:'✕', title:'Close', style:'position:absolute;right:0;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 10px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;font-size:16px;font-weight:bold;z-index:10;'});
+
 titleBar.appendChild(btnConfig);
 titleWrapper.appendChild(title);
 titleWrapper.appendChild(closeBtn);
@@ -562,11 +113,12 @@ templateSelect.appendChild(noneOption);
 templateControls.appendChild(templateSelect);
 
 var btnNewTemplate = el('button',{innerText:'New Template', style:'cursor:pointer;padding:6px 12px;background:#2a5a2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;font-size:12px;', type:'button'});
-var btnEditTemplate = el('button',{innerText:'Edit', style:'cursor:pointer;padding:6px 12px;background:#5a5a2a;color:#fff;border:1px solid #7a7a3a;border-radius:4px;font-size:12px;', type:'button'});
-var btnDeleteTemplate = el('button',{innerText:'Delete', style:'cursor:pointer;padding:6px 12px;background:#5a2a2a;color:#fff;border:1px solid #7a3a3a;border-radius:4px;font-size:12px;', type:'button'});
-
 templateControls.appendChild(btnNewTemplate);
+
+var btnEditTemplate = el('button',{innerText:'Edit', style:'cursor:pointer;padding:6px 12px;background:#5a5a2a;color:#fff;border:1px solid #7a7a3a;border-radius:4px;font-size:12px;', type:'button'});
 templateControls.appendChild(btnEditTemplate);
+
+var btnDeleteTemplate = el('button',{innerText:'Delete', style:'cursor:pointer;padding:6px 12px;background:#5a2a2a;color:#fff;border:1px solid #7a3a3a;border-radius:4px;font-size:12px;', type:'button'});
 templateControls.appendChild(btnDeleteTemplate);
 
 var templateInfo = el('div',{style:'font-size:11px;color:#888;text-align:center;padding:4px;'});
@@ -636,8 +188,18 @@ searchWrapper.appendChild(fromSearchWrap);
 searchWrapper.appendChild(toSearchWrap);
 
 // Open Tabs button centered below search
-var openTabsRow = el('div',{style:'display:flex;gap:8px;justify-content:center;'});
+var openTabsRow = el('div',{style:'display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap;'});
+
+var fakeModeWrapper = el('label',{style:'display:flex;align-items:center;gap:6px;color:#bbb;font-size:12px;cursor:pointer;'});
+var fakeModeCheckbox = el('input',{type:'checkbox', style:'cursor:pointer;'});
+var fakeModeLabel = el('span',{innerText:'Fake Mode (limit by available units)'});
+fakeModeWrapper.appendChild(fakeModeCheckbox);
+fakeModeWrapper.appendChild(fakeModeLabel);
+
 var btnOpenTabs = el('button',{innerText:'Open Tabs', style:'cursor:pointer;padding:10px 24px;background:#2a5a2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;font-weight:bold;font-size:14px;', type:'button'});
+
+openTabsRow.appendChild(fakeModeCheckbox);
+openTabsRow.appendChild(fakeModeLabel);
 openTabsRow.appendChild(btnOpenTabs);
 rallySection.appendChild(openTabsRow);
 
@@ -818,6 +380,61 @@ toDropdown.style.display='none';
 var villagesArr = parseVillagesTxt(loadVillagesText());
 var villagesIndex = buildCoordIndex(villagesArr);
 
+// Server time utilities
+function getServerTime(){
+try{
+// Tribal Wars stores server time in various places
+// Method 1: Check for Timing.getCurrentServerTime() function
+if(typeof Timing !== 'undefined' && Timing.getCurrentServerTime){
+return new Date(Timing.getCurrentServerTime());
+}
+
+// Method 2: Check for server_utc_diff variable
+if(typeof server_utc_diff !== 'undefined'){
+var now = new Date();
+var serverTime = new Date(now.getTime() + (server_utc_diff * 1000));
+return serverTime;
+}
+
+// Method 3: Parse from the game header
+var serverTimeEl = document.getElementById('serverTime');
+if(serverTimeEl){
+var timeText = serverTimeEl.textContent.trim();
+// Parse format like "24/01/2026 19:23:45"
+var match = timeText.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
+if(match){
+var day = parseInt(match[1]);
+var month = parseInt(match[2]) - 1;
+var year = parseInt(match[3]);
+var hour = parseInt(match[4]);
+var minute = parseInt(match[5]);
+var second = parseInt(match[6]);
+return new Date(year, month, day, hour, minute, second);
+}
+}
+
+// Fallback to local time if server time unavailable
+console.warn('Server time not found, using local time');
+return new Date();
+}catch(e){
+console.error('Error getting server time:', e);
+return new Date();
+}
+}
+
+// Store server time offset
+var serverTimeOffset = 0;
+(function(){
+var serverTime = getServerTime();
+var localTime = new Date();
+serverTimeOffset = serverTime.getTime() - localTime.getTime();
+console.log('Server time offset:', serverTimeOffset, 'ms');
+})();
+
+function getCurrentServerTime(){
+return new Date(new Date().getTime() + serverTimeOffset);
+}
+
 // Template System
 var unitTemplates = {};
 var currentTemplate = null;
@@ -982,3 +599,658 @@ return;
 }
 showTemplateEditor(selected);
 };
+
+btnDeleteTemplate.onclick = function(){
+var selected = templateSelect.value;
+if(!selected){
+showMessage('Please select a template to delete');
+return;
+}
+if(confirm('Delete template "' + selected + '"?')){
+delete unitTemplates[selected];
+saveTemplates();
+if(currentTemplate === selected) currentTemplate = null;
+refreshTemplateSelect();
+showMessage('Template deleted');
+}
+};
+
+templateSelect.onchange = function(){
+currentTemplate = templateSelect.value || null;
+if(currentTemplate){
+showMessage('Template "' + currentTemplate + '" selected');
+} else {
+showMessage('No template selected');
+}
+};
+
+// Load templates on start
+loadTemplates();
+refreshTemplateSelect();
+
+// Function to read units from combined overview for a specific village
+function getVillageUnitsFromOverview(villageId){
+var units = {};
+try{
+// Find the row in combined table for this village
+var combinedTable = document.getElementById('combined_table');
+if(!combinedTable){
+console.log('Combined table not found');
+return units;
+}
+  
+// Find the row with this village ID
+var rows = combinedTable.querySelectorAll('tr');
+for(var i=0;i<rows.length;i++){
+var row = rows[i];
+// Look for village link with matching ID
+var villageSpan = row.querySelector('span.quickedit-vn[data-id="' + villageId + '"]');
+if(!villageSpan) continue;
+  
+console.log('Found village row for ID:', villageId);
+  
+// Extract unit counts from cells with class "unit-item"
+var unitCells = row.querySelectorAll('td.unit-item');
+console.log('Found unit cells:', unitCells.length);
+  
+// Map each cell to corresponding unit type
+for(var j=0;j<unitCells.length && j<UNIT_TYPES.length;j++){
+var count = parseInt(unitCells[j].textContent.trim()) || 0;
+units[UNIT_TYPES[j]] = count;
+console.log('Unit:', UNIT_TYPES[j], '=', count);
+}
+  
+break;
+}
+  
+console.log('Units extracted for village', villageId, ':', units);
+}catch(e){
+console.error('Error reading units from overview:', e);
+}
+return units;
+}
+
+// Function to calculate units to send based on template
+function calculateUnitsToSend(availableUnits, template){
+var unitsToSend = {};
+var mode = template.mode;
+var config = template.units;
+  
+for(var unitType in availableUnits){
+var available = availableUnits[unitType] || 0;
+var templateValue = config[unitType] || 0;
+var toSend = 0;
+  
+if(mode === 'send'){
+// Send X units - send exactly the amount specified (or all if less available)
+toSend = Math.min(templateValue, available);
+} else if(mode === 'keep'){
+// Keep X units at home - send everything except the reserve
+toSend = Math.max(0, available - templateValue);
+}
+  
+if(toSend > 0){
+unitsToSend[unitType] = toSend;
+}
+}
+  
+return unitsToSend;
+}
+
+// Function to build URL with unit template
+function buildRallyUrlWithTemplate(forVillageId, targetVillageId){
+var baseUrl = buildRallyUrl(forVillageId, targetVillageId);
+  
+if(!currentTemplate || !unitTemplates[currentTemplate]){
+return baseUrl;
+}
+  
+// Read available units from the overview page
+var availableUnits = getVillageUnitsFromOverview(forVillageId);
+console.log('Available units for village ' + forVillageId + ':', availableUnits);
+  
+// Calculate units to send
+var unitsToSend = calculateUnitsToSend(availableUnits, unitTemplates[currentTemplate]);
+console.log('Units to send:', unitsToSend);
+  
+// Add units as URL parameters
+try{
+var url = new URL(baseUrl);
+for(var unitType in unitsToSend){
+url.searchParams.set(unitType, unitsToSend[unitType]);
+}
+return url.toString();
+}catch(e){
+// Fallback for older browsers
+var params = [];
+for(var ut in unitsToSend){
+params.push(ut + '=' + unitsToSend[ut]);
+}
+return baseUrl + (baseUrl.indexOf('?') > -1 ? '&' : '?') + params.join('&');
+}
+}
+
+function parseCoordinateList(text){
+if(!text) return [];
+var lines = text.trim().split(/\r?\n/);
+var coords = [];
+for(var i=0;i<lines.length;i++){
+var line = lines[i].trim();
+if(!line) continue;
+line = line.replace(',', '|');
+if(line.match(/\d+\|\d+/)){
+coords.push(line);
+}
+}
+return coords;
+}
+
+function coordToVillageId(coord){
+if(!coord) return null;
+var m = coord.match(/(\d+)\|(\d+)/);
+if(!m) return null;
+var key = coordKey(Number(m[1]), Number(m[2]));
+var v = lookupIndex(villagesIndex, key);
+return v ? v.id : null;
+}
+
+function buildRallyUrl(forVillageId, targetVillageId){
+try{
+var baseUrl = window.location.origin + window.location.pathname;
+var url = new URL(baseUrl);
+url.searchParams.set('screen','place');
+url.searchParams.set('village', forVillageId);
+url.searchParams.set('target', targetVillageId);
+return url.toString();
+}catch(e){
+return location.origin + '/game.php?village=' + encodeURIComponent(forVillageId) + '&screen=place&target=' + encodeURIComponent(targetVillageId);
+}
+}
+
+function prepareTabsFromPairs(fromCoords, toCoords){
+var maxLen = Math.max(fromCoords.length, toCoords.length);
+var pairs = [];
+var failed = [];
+  
+// First, create all coordinate pairs
+for(var i=0;i<maxLen;i++){
+var fromCoord = fromCoords[i] || null;
+var toCoord = toCoords[i] || null;
+if(!fromCoord || !toCoord){ 
+failed.push('Row ' + (i+1) + ': missing From or To coordinate');
+continue; 
+}
+var fromId = coordToVillageId(fromCoord);
+var toId = coordToVillageId(toCoord);
+if(!fromId || !toId){ 
+failed.push('Row ' + (i+1) + ': village not found for ' + fromCoord + ' -> ' + toCoord);
+continue; 
+}
+pairs.push({fromId: fromId, toId: toId, fromCoord: fromCoord, toCoord: toCoord, index: i+1});
+}
+  
+if(pairs.length === 0){
+showMessage('No valid pairs found - check your coordinates');
+if(failed.length > 0){
+console.log('Rally Opener failures:', failed);
+}
+return [];
+}
+  
+// Check if Fake Mode is enabled
+var isFakeMode = fakeModeCheckbox.checked;
+  
+if(isFakeMode && currentTemplate && unitTemplates[currentTemplate]){
+console.log('Fake Mode enabled - checking unit availability');
+    
+// Group pairs by FROM village
+var villageGroups = {};
+for(var j=0;j<pairs.length;j++){
+var pair = pairs[j];
+if(!villageGroups[pair.fromId]){
+villageGroups[pair.fromId] = [];
+}
+villageGroups[pair.fromId].push(pair);
+}
+    
+// For each village, calculate how many attacks we can afford
+var finalPairs = [];
+for(var villageId in villageGroups){
+var villagePairs = villageGroups[villageId];
+var availableUnits = getVillageUnitsFromOverview(villageId);
+var template = unitTemplates[currentTemplate];
+      
+// Calculate how many attacks this village can support
+var maxAttacks = calculateMaxAttacks(availableUnits, template);
+console.log('Village', villageId, 'can support', maxAttacks, 'attacks out of', villagePairs.length, 'requested');
+      
+if(maxAttacks >= villagePairs.length){
+// Can do all attacks
+finalPairs = finalPairs.concat(villagePairs);
+} else if(maxAttacks > 0){
+// Randomly select which attacks to do
+var shuffled = villagePairs.slice();
+// Fisher-Yates shuffle
+for(var k=shuffled.length-1;k>0;k--){
+var randIdx = Math.floor(Math.random() * (k+1));
+var temp = shuffled[k];
+shuffled[k] = shuffled[randIdx];
+shuffled[randIdx] = temp;
+}
+// Take only the first maxAttacks
+for(var m=0;m<maxAttacks;m++){
+finalPairs.push(shuffled[m]);
+}
+// Log skipped attacks
+for(var n=maxAttacks;n<shuffled.length;n++){
+failed.push('Row ' + shuffled[n].index + ': insufficient units (randomly skipped in Fake Mode)');
+}
+} else {
+// Can't do any attacks from this village
+for(var p=0;p<villagePairs.length;p++){
+failed.push('Row ' + villagePairs[p].index + ': insufficient units in village');
+}
+}
+}
+    
+pairs = finalPairs;
+}
+  
+// Build URLs
+var urls = [];
+for(var q=0;q<pairs.length;q++){
+var url = buildRallyUrlWithTemplate(pairs[q].fromId, pairs[q].toId);
+urls.push(url);
+}
+  
+if(urls.length === 0){
+showMessage('No valid pairs found - check your coordinates and available units');
+if(failed.length > 0){
+console.log('Rally Opener failures:', failed);
+}
+return [];
+}
+  
+var msg = 'Prepared ' + urls.length + ' tab' + (urls.length > 1 ? 's' : '');
+if(isFakeMode && failed.length > 0){
+msg += ' (skipped ' + failed.length + ' due to unit limits)';
+}
+showMessage(msg + ' - ready to open!');
+  
+if(failed.length > 0){
+console.log('Rally Opener warnings:', failed);
+}
+return urls;
+}
+
+// Calculate maximum number of attacks a village can support with given template
+function calculateMaxAttacks(availableUnits, template){
+if(!template || !template.units) return 0;
+  
+var mode = template.mode;
+var config = template.units;
+var maxAttacks = Infinity;
+  
+for(var unitType in config){
+var required = config[unitType];
+if(!required || required === 0) continue;
+    
+var available = availableUnits[unitType] || 0;
+var possibleAttacks = 0;
+    
+if(mode === 'send'){
+// Need exactly 'required' units per attack
+possibleAttacks = Math.floor(available / required);
+} else if(mode === 'keep'){
+// Need to keep 'required' at home, send the rest
+var canSend = Math.max(0, available - required);
+possibleAttacks = canSend > 0 ? Infinity : 0;
+}
+    
+maxAttacks = Math.min(maxAttacks, possibleAttacks);
+}
+  
+return maxAttacks === Infinity ? 0 : maxAttacks;
+}
+
+// Attack Plan functions
+var attackPlanGroups = {};
+var attackPlanConfig = {
+defaultUrl: 'https://api.github.com/repos/CasperCBClausen/tribalwars/contents/Attackplans'
+};
+
+function loadConfig(){
+try{
+var saved = localStorage.getItem('tw_rally_config');
+if(saved){
+var config = JSON.parse(saved);
+attackPlanConfig.defaultUrl = config.defaultUrl || attackPlanConfig.defaultUrl;
+}
+}catch(e){}
+}
+
+function saveConfig(){
+try{
+localStorage.setItem('tw_rally_config', JSON.stringify(attackPlanConfig));
+}catch(e){}
+}
+
+loadConfig();
+
+function parseAttackPlan(text){
+console.log('Parsing attack plan, text length:', text.length);
+var lines = text.split(/\r?\n/).filter(function(l){ return l.trim(); });
+console.log('Lines found:', lines.length);
+var groups = {};
+for(var i=0;i<lines.length;i++){
+var line = lines[i].trim();
+if(!line || line.match(/^-+$/)) continue;
+if(line.match(/Group.*From.*To/i)){
+console.log('Skipping header line');
+continue;
+}
+var parts = line.split(/\s{2,}|\t/);
+console.log('Line parts:', parts);
+if(parts.length < 3) continue;
+var groupNum = parts[0].trim();
+var fromVillage = parts[1].trim();
+var toTarget = parts[2].trim();
+console.log('Parsed:', groupNum, fromVillage, toTarget);
+if(!groupNum.match(/^\d+$/)){
+console.log('Group number invalid:', groupNum);
+continue;
+}
+if(!fromVillage.match(/\d+\|\d+/)){
+console.log('From village invalid:', fromVillage);
+continue;
+}
+if(!toTarget.match(/\d+\|\d+/)){
+console.log('To target invalid:', toTarget);
+continue;
+}
+var launchTime = null;
+if(parts.length >= 6){
+var launchStr = parts[5].trim();
+if(launchStr.match(/\d{4}-\d{2}-\d{2}/)){
+launchTime = new Date(launchStr);
+console.log('Launch time:', launchTime);
+}
+}
+if(!groups[groupNum]){
+groups[groupNum] = {
+attacks: [],
+launchTime: launchTime
+};
+}
+groups[groupNum].attacks.push({
+from: fromVillage,
+to: toTarget
+});
+}
+console.log('Groups parsed:', Object.keys(groups).length, groups);
+return groups;
+}
+
+function parseHTMLAttackPlan(html){
+var parser = new DOMParser();
+var doc = parser.parseFromString(html, 'text/html');
+var rows = doc.querySelectorAll('table tbody tr');
+var groups = {};
+for(var i=0;i<rows.length;i++){
+var cells = rows[i].querySelectorAll('td');
+if(cells.length < 3) continue;
+var groupNum = cells[0].textContent.trim();
+var fromVillage = cells[1].textContent.trim();
+var toTarget = cells[2].textContent.trim();
+if(!groupNum.match(/^\d+$/)) continue;
+if(!fromVillage.match(/\d+\|\d+/)) continue;
+if(!toTarget.match(/\d+\|\d+/)) continue;
+var launchTime = null;
+if(cells.length >= 6){
+var launchStr = cells[5].textContent.trim();
+if(launchStr.match(/\d{4}-\d{2}-\d{2}/)){
+launchTime = new Date(launchStr);
+}
+}
+if(!groups[groupNum]){
+groups[groupNum] = {
+attacks: [],
+launchTime: launchTime
+};
+}
+groups[groupNum].attacks.push({
+from: fromVillage,
+to: toTarget
+});
+}
+return groups;
+}
+
+function createGroupButtons(){
+attackPlanContainer.innerHTML = '';
+attackPlanContainer.style.display = 'block';
+var groupKeys = Object.keys(attackPlanGroups).sort(function(a,b){ return Number(a) - Number(b); });
+for(var i=0;i<groupKeys.length;i++){
+var groupNum = groupKeys[i];
+var group = attackPlanGroups[groupNum];
+var btnGroup = document.createElement('button');
+btnGroup.className = 'group-btn';
+btnGroup.dataset.group = groupNum;
+btnGroup.style.cssText = 'cursor:pointer;padding:10px 20px;background:#3a5a3a;color:#fff;border:1px solid #4a7a4a;border-radius:4px;font-weight:bold;margin:5px;display:inline-block;min-width:180px;';
+var attackCount = group.attacks.length;
+btnGroup.innerHTML = 'Group ' + groupNum + '<br><span style="font-size:11px;">(' + attackCount + ' attack' + (attackCount > 1 ? 's' : '') + ')</span>';
+if(group.launchTime){
+var now = getCurrentServerTime();
+var isExpired = group.launchTime <= now;
+var countdownSpan = document.createElement('span');
+countdownSpan.className = 'countdown';
+countdownSpan.style.cssText = 'font-size:10px;display:block;margin-top:4px;';
+if(isExpired){
+countdownSpan.textContent = 'LAUNCH EXCEEDED';
+countdownSpan.style.color = '#ff4444';
+countdownSpan.style.fontWeight = 'bold';
+} else {
+countdownSpan.textContent = 'Calculating...';
+countdownSpan.style.color = '#aaffaa';
+}
+btnGroup.appendChild(document.createElement('br'));
+btnGroup.appendChild(countdownSpan);
+}
+btnGroup.onclick = (function(grp){
+return function(){
+openGroupAttacks(grp);
+};
+})(group);
+attackPlanContainer.appendChild(btnGroup);
+}
+startCountdowns();
+}
+
+function startCountdowns(){
+if(window._countdownInterval){
+clearInterval(window._countdownInterval);
+}
+window._countdownInterval = setInterval(function(){
+var countdowns = document.querySelectorAll('.countdown');
+for(var i=0;i<countdowns.length;i++){
+var btn = countdowns[i].closest('.group-btn');
+if(!btn) continue;
+var groupNum = btn.dataset.group;
+var group = attackPlanGroups[groupNum];
+if(!group || !group.launchTime) continue;
+var now = getCurrentServerTime();
+var diff = group.launchTime - now;
+if(diff <= 0){
+countdowns[i].textContent = 'LAUNCH EXCEEDED';
+countdowns[i].style.color = '#ff4444';
+countdowns[i].style.fontWeight = 'bold';
+continue;
+}
+var hours = Math.floor(diff / 3600000);
+var minutes = Math.floor((diff % 3600000) / 60000);
+var seconds = Math.floor((diff % 60000) / 1000);
+countdowns[i].textContent = hours + 'h ' + minutes + 'm ' + seconds + 's';
+countdowns[i].style.color = '#aaffaa';
+}
+}, 1000);
+}
+
+function openGroupAttacks(group){
+var attacks = group.attacks;
+var urls = [];
+for(var i=0;i<attacks.length;i++){
+var fromId = coordToVillageId(attacks[i].from);
+var toId = coordToVillageId(attacks[i].to);
+if(!fromId || !toId){
+console.log('Could not find village ID for', attacks[i].from, '->', attacks[i].to);
+continue;
+}
+var url = buildRallyUrlWithTemplate(fromId, toId);
+urls.push(url);
+}
+if(urls.length === 0){
+showMessage('No valid attacks in this group');
+return;
+}
+showMessage('Opening ' + urls.length + ' tabs for group...');
+var delayTab = 200;
+for(var j=0;j<urls.length;j++){
+(function(url, idx){
+window.setTimeout(function(){
+window.open(url, '_blank');
+console.log('Opened attack ' + (idx + 1) + ' at ' + new Date().getTime());
+}, delayTab * idx);
+})(urls[j], j);
+}
+}
+
+// Button handlers
+btnOpenTabs.onclick = function(){
+console.log('Open Tabs clicked');
+var fromCoords = parseCoordinateList(fromTextarea.value);
+var toCoords = parseCoordinateList(toTextarea.value);
+console.log('From coords:', fromCoords);
+console.log('To coords:', toCoords);
+if(fromCoords.length === 0 || toCoords.length === 0){ 
+showMessage('Please enter coordinates in both FROM and TO columns'); 
+return; 
+}
+var preparedUrls = prepareTabsFromPairs(fromCoords, toCoords);
+console.log('PreparedUrls:', preparedUrls.length);
+if(preparedUrls.length === 0){
+return;
+}
+
+showMessage('Opening ' + preparedUrls.length + ' tabs...');
+var delayTab = 200;
+for(var j=0;j<preparedUrls.length;j++){
+(function(url, idx){
+window.setTimeout(function(){
+window.open(url, '_blank');
+console.log('Opened tab ' + (idx + 1) + ' at ' + new Date().getTime());
+}, delayTab * idx);
+})(preparedUrls[j], j);
+}
+};
+
+btnTestData.onclick = function(){
+fromTextarea.value = '524|496\n524|496\n524|496';
+toTextarea.value = '523|496\n525|496\n522|495';
+showMessage('Test data loaded');
+};
+
+btnPasteAttackPlan.onclick = function(){
+var pasteArea = prompt('Paste your attack plan (ASCII or copied from HTML table):');
+if(!pasteArea) return;
+try{
+attackPlanGroups = parseAttackPlan(pasteArea);
+if(Object.keys(attackPlanGroups).length === 0){
+showMessage('No valid groups found in attack plan');
+return;
+}
+createGroupButtons();
+showMessage('Loaded ' + Object.keys(attackPlanGroups).length + ' groups from attack plan');
+}catch(e){
+showMessage('Error parsing attack plan: ' + e.message);
+console.error(e);
+}
+};
+
+btnLoadAttackPlan.onclick = function(){
+var url = attackPlanConfig.defaultUrl;
+showMessage('Loading attack plans...');
+fetch(url)
+.then(function(r){ return r.json(); })
+.then(function(files){
+var htmlFiles = files.filter(function(f){ return f.name.match(/\.html$/i); });
+if(htmlFiles.length === 0){
+showMessage('No HTML attack plans found');
+return;
+}
+var fileList = htmlFiles.map(function(f, idx){ return (idx+1) + '. ' + f.name; }).join('\n');
+var choice = prompt('Choose an attack plan:\n\n' + fileList + '\n\nEnter number (1-' + htmlFiles.length + '):');
+if(!choice) return;
+var fileIdx = parseInt(choice) - 1;
+if(fileIdx < 0 || fileIdx >= htmlFiles.length){
+showMessage('Invalid choice');
+return;
+}
+var selectedFile = htmlFiles[fileIdx];
+showMessage('Loading ' + selectedFile.name + '...');
+return fetch(selectedFile.download_url);
+})
+.then(function(r){ if(r) return r.text(); })
+.then(function(html){
+if(!html) return;
+attackPlanGroups = parseHTMLAttackPlan(html);
+if(Object.keys(attackPlanGroups).length === 0){
+showMessage('No valid groups found in attack plan');
+return;
+}
+createGroupButtons();
+showMessage('Loaded ' + Object.keys(attackPlanGroups).length + ' groups from attack plan');
+})
+.catch(function(err){
+showMessage('Error loading attack plan: ' + err.message);
+console.error(err);
+});
+};
+
+btnConfig.onclick = function(){
+var newUrl = prompt('Enter the URL to fetch attack plans from:\n\nThis should be an API endpoint that returns a list of HTML files.\n\nFor GitHub: https://api.github.com/repos/USER/REPO/contents/FOLDER\nFor other services: provide the appropriate API URL\n\nCurrent URL:', attackPlanConfig.defaultUrl);
+if(newUrl && newUrl.trim()){
+attackPlanConfig.defaultUrl = newUrl.trim();
+saveConfig();
+showMessage('Config saved');
+}
+};
+
+btnGet.onclick = function(){
+var lastFetch = localStorage.getItem('tw_villages_updated');
+var now = Date.now();
+var oneHour = 60 * 60 * 1000;
+if(lastFetch){
+var timeSince = now - Number(lastFetch);
+if(timeSince < oneHour){
+var minutesLeft = Math.ceil((oneHour - timeSince) / 60000);
+var confirmed = confirm('WARNING: Script rules require at least 1 hour between fetches.\n\nLast fetch: ' + Math.floor(timeSince / 60000) + ' min ago.\nWait ' + minutesLeft + ' more min.\n\nFetch anyway?');
+if(!confirmed) return;
+}
+}
+showMessage('Fetching village.txt...');
+tryFetchVillagesFromServer().then(function(txt){
+if(!txt) throw new Error('Empty');
+saveVillagesText(txt);
+villagesArr = parseVillagesTxt(txt);
+villagesIndex = buildCoordIndex(villagesArr);
+showMessage('village.txt saved (' + villagesArr.length + ' entries)');
+}).catch(function(err){
+showMessage('Failed: ' + (err && err.message ? err.message : String(err)));
+});
+};
+
+showMessage('Rally Opener ready!');
+
+} // End of page check
+
+}
