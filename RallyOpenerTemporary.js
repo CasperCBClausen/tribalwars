@@ -139,12 +139,29 @@ rallySection.appendChild(btnTestData);
 var columnsWrapper = el('div',{style:'display:flex;gap:12px;margin-bottom:12px;'});
 rallySection.appendChild(columnsWrapper);
 
-var fromColumn = el('div',{style:'flex:1;display:flex;flex-direction:column;'});
+var fromColumn = el('div',{style:'flex:1;display:flex;flex-direction:column;position:relative;'});
 var toColumn = el('div',{style:'flex:1;display:flex;flex-direction:column;'});
 
 var fromLabel = el('div',{style:'font-weight:bold;margin-bottom:6px;color:#aaa;text-align:center;font-size:14px;'});
 fromLabel.textContent = 'FROM Coordinates';
+
+// Use current group checkbox
+var useGroupWrapper = el('label',{style:'display:flex;align-items:center;gap:6px;color:#bbb;font-size:11px;cursor:pointer;margin-bottom:4px;justify-content:center;'});
+var useGroupCheckbox = el('input',{type:'checkbox', style:'cursor:pointer;'});
+var useGroupLabel = el('span',{innerText:'Use current group'});
+useGroupWrapper.appendChild(useGroupCheckbox);
+useGroupWrapper.appendChild(useGroupLabel);
+
 var fromTextarea = el('textarea',{rows:8, style:'width:100%;box-sizing:border-box;background:#0f0f0f;color:#fff;border:1px solid #444;padding:8px;border-radius:4px;resize:vertical;font-family:monospace;', placeholder:'111|222\n222|111\n223|111'});
+
+// Overlay for "Using current group"
+var fromOverlay = el('div',{style:'position:absolute;top:52px;left:0;right:0;bottom:0;background:rgba(15,15,15,0.95);border:1px solid #444;border-radius:4px;display:none;align-items:center;justify-content:center;color:#4a9eff;font-weight:bold;font-size:14px;pointer-events:none;'});
+fromOverlay.textContent = 'Using current group';
+
+fromColumn.appendChild(fromLabel);
+fromColumn.appendChild(useGroupWrapper);
+fromColumn.appendChild(fromTextarea);
+fromColumn.appendChild(fromOverlay);
 
 var toLabel = el('div',{style:'font-weight:bold;margin-bottom:6px;color:#aaa;text-align:center;font-size:14px;'});
 toLabel.textContent = 'TO Coordinates';
@@ -157,6 +174,19 @@ toColumn.appendChild(toTextarea);
 
 columnsWrapper.appendChild(fromColumn);
 columnsWrapper.appendChild(toColumn);
+
+// Handle "Use current group" checkbox
+useGroupCheckbox.addEventListener('change', function(){
+if(useGroupCheckbox.checked){
+fromTextarea.disabled = true;
+fromTextarea.style.opacity = '0.5';
+fromOverlay.style.display = 'flex';
+} else {
+fromTextarea.disabled = false;
+fromTextarea.style.opacity = '1';
+fromOverlay.style.display = 'none';
+}
+});
 
 // Search fields for From and To
 var searchWrapper = el('div',{style:'display:flex;gap:12px;margin-bottom:12px;'});
@@ -730,6 +760,60 @@ return baseUrl + (baseUrl.indexOf('?') > -1 ? '&' : '?') + params.join('&');
 }
 }
 
+// Function to get villages from current in-game group
+function getVillagesFromCurrentGroup(){
+var villages = [];
+try{
+// Method 1: Check URL for current group
+var currentUrl = window.location.href;
+var groupMatch = currentUrl.match(/[?&]group=(\d+)/);
+var currentGroupId = groupMatch ? groupMatch[1] : '0';
+console.log('Current group ID:', currentGroupId);
+    
+// Method 2: Check for selected group in dropdown
+var groupSelect = document.getElementById('group_id');
+if(groupSelect){
+currentGroupId = groupSelect.value;
+console.log('Group from dropdown:', currentGroupId);
+}
+    
+// Get villages from combined table that belong to this group
+var combinedTable = document.getElementById('combined_table');
+if(!combinedTable){
+console.log('Combined table not found');
+return villages;
+}
+    
+var rows = combinedTable.querySelectorAll('tr');
+for(var i=0;i<rows.length;i++){
+var row = rows[i];
+var villageSpan = row.querySelector('span.quickedit-vn[data-id]');
+if(!villageSpan) continue;
+      
+var villageId = villageSpan.getAttribute('data-id');
+var villageName = villageSpan.textContent.trim();
+      
+// Extract coordinates from village name
+var coordMatch = villageName.match(/\((\d+)\|(\d+)\)/);
+if(coordMatch){
+var x = coordMatch[1];
+var y = coordMatch[2];
+villages.push({
+id: villageId,
+coord: x + '|' + y,
+name: villageName
+});
+console.log('Found village in group:', villageId, x + '|' + y);
+}
+}
+    
+console.log('Total villages in current group:', villages.length);
+}catch(e){
+console.error('Error getting villages from group:', e);
+}
+return villages;
+}
+
 function parseCoordinateList(text){
 if(!text) return [];
 var lines = text.trim().split(/\r?\n/);
@@ -1127,14 +1211,32 @@ console.log('Opened attack ' + (idx + 1) + ' at ' + new Date().getTime());
 // Button handlers
 btnOpenTabs.onclick = function(){
 console.log('Open Tabs clicked');
-var fromCoords = parseCoordinateList(fromTextarea.value);
+  
+var fromCoords;
 var toCoords = parseCoordinateList(toTextarea.value);
-console.log('From coords:', fromCoords);
+  
+// Check if "Use current group" is enabled
+if(useGroupCheckbox.checked){
+console.log('Using current group for FROM coordinates');
+var groupVillages = getVillagesFromCurrentGroup();
+if(groupVillages.length === 0){
+showMessage('No villages found in current group');
+return;
+}
+fromCoords = groupVillages.map(function(v){ return v.coord; });
+console.log('From group coords:', fromCoords);
+} else {
+fromCoords = parseCoordinateList(fromTextarea.value);
+console.log('From manual coords:', fromCoords);
+}
+  
 console.log('To coords:', toCoords);
+  
 if(fromCoords.length === 0 || toCoords.length === 0){ 
 showMessage('Please enter coordinates in both FROM and TO columns'); 
 return; 
 }
+  
 var preparedUrls = prepareTabsFromPairs(fromCoords, toCoords);
 console.log('PreparedUrls:', preparedUrls.length);
 if(preparedUrls.length === 0){
