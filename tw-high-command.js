@@ -252,58 +252,103 @@ console.log('🎮 TW High Command v2.1 loaded!');
             // Extract troops (from combat and scout reports)
             const unitTypes = ['spear', 'sword', 'axe', 'archer', 'spy', 'light', 'marcher', 'heavy', 'ram', 'catapult', 'knight', 'snob'];
             
-            // Find all tables with troop information
+            // Find troop tables - they have specific structure with unit icons
             const tables = content.querySelectorAll('table');
             tables.forEach(table => {
+                const tableHTML = table.innerHTML.toLowerCase();
+                
+                // Skip if no unit images
+                if (!unitTypes.some(unit => tableHTML.includes(unit))) return;
+                
+                // Determine if this is attacker or defender table by checking the table's context
                 const tableText = table.textContent.toLowerCase();
                 
-                // Check if this table contains troop data
-                if (!unitTypes.some(unit => tableText.includes(unit))) return;
+                // Check the table header or preceding text for attacker/defender label
+                let isAttackerTable = false;
+                let isDefenderTable = false;
                 
-                const rows = table.querySelectorAll('tr');
-                rows.forEach(row => {
+                // Look for table headers with attack/defense labels
+                const headers = table.querySelectorAll('th');
+                headers.forEach(th => {
+                    const text = th.textContent.toLowerCase();
+                    if (text.includes('attacker')) isAttackerTable = true;
+                    if (text.includes('defender')) isDefenderTable = true;
+                });
+                
+                // If still not clear, check rows
+                if (!isAttackerTable && !isDefenderTable) {
+                    const firstRows = Array.from(table.querySelectorAll('tr')).slice(0, 3);
+                    firstRows.forEach(row => {
+                        const text = row.textContent.toLowerCase();
+                        if (text.includes('attacker')) isAttackerTable = true;
+                        if (text.includes('defender')) isDefenderTable = true;
+                    });
+                }
+                
+                // For scout reports with no clear label, check if we already have attacker data
+                const defaultToDefender = !isAttackerTable && !isDefenderTable;
+                
+                const rows = Array.from(table.querySelectorAll('tr'));
+                
+                // Find header row with unit images
+                let headerRowIdx = -1;
+                let unitColumns = []; // [{idx, unitType}]
+                
+                rows.forEach((row, rowIdx) => {
                     const cells = Array.from(row.querySelectorAll('th, td'));
-                    
-                    // Look for unit images in headers
-                    cells.forEach((cell, idx) => {
-                        const img = cell.querySelector('img');
-                        if (!img) return;
-                        
-                        // Identify unit type from image
-                        const unitType = unitTypes.find(u => img.src.includes(`unit_${u}`) || img.src.includes(u));
-                        if (!unitType) return;
-                        
-                        // The next rows should contain quantities
-                        const parentTable = cell.closest('table');
-                        const allRows = Array.from(parentTable.querySelectorAll('tr'));
-                        const headerRowIndex = allRows.indexOf(row);
-                        
-                        // Look at subsequent rows for quantities
-                        for (let i = headerRowIndex + 1; i < Math.min(headerRowIndex + 5, allRows.length); i++) {
-                            const dataRow = allRows[i];
-                            const dataCells = Array.from(dataRow.querySelectorAll('td'));
-                            
-                            if (dataCells[idx]) {
-                                const value = parseInt(dataCells[idx].textContent.replace(/\D/g, '')) || 0;
-                                const rowLabel = dataRow.textContent.toLowerCase();
-                                
-                                // Determine what this row represents
-                                if (rowLabel.includes('attacker') && rowLabel.includes('quantity')) {
-                                    report.attackerTroops[unitType] = value;
-                                } else if (rowLabel.includes('attacker') && rowLabel.includes('losses')) {
-                                    report.attackerLosses[unitType] = value;
-                                } else if (rowLabel.includes('defender') && rowLabel.includes('quantity')) {
-                                    report.defenderTroops[unitType] = value;
-                                } else if (rowLabel.includes('defender') && rowLabel.includes('losses')) {
-                                    report.defenderLosses[unitType] = value;
-                                } else if (rowLabel.includes('quantity') && !report.defenderTroops[unitType]) {
-                                    // Default to defender troops for scout reports
-                                    report.defenderTroops[unitType] = value;
+                    cells.forEach((cellIdx, cellPos) => {
+                        const img = cells[cellPos].querySelector('img');
+                        if (img) {
+                            const unitType = unitTypes.find(u => img.src.includes(`unit_${u}`) || img.src.includes(`/${u}.png`));
+                            if (unitType) {
+                                if (headerRowIdx === -1) headerRowIdx = rowIdx;
+                                if (headerRowIdx === rowIdx) {
+                                    unitColumns.push({idx: cellPos, unitType});
                                 }
                             }
                         }
                     });
                 });
+                
+                if (headerRowIdx === -1 || unitColumns.length === 0) return;
+                
+                // Parse data rows after header
+                for (let i = headerRowIdx + 1; i < rows.length && i < headerRowIdx + 4; i++) {
+                    const dataRow = rows[i];
+                    const dataCells = Array.from(dataRow.querySelectorAll('td'));
+                    const rowText = dataRow.textContent.toLowerCase();
+                    
+                    // Determine what type of data this row contains
+                    const isQuantity = rowText.includes('quantity') || rowText.includes('actual');
+                    const isLosses = rowText.includes('losses') || rowText.includes('lost');
+                    
+                    if (!isQuantity && !isLosses) continue;
+                    
+                    // Determine if this specific row is for attacker or defender
+                    const rowIsAttacker = rowText.includes('attacker');
+                    const rowIsDefender = rowText.includes('defender');
+                    
+                    unitColumns.forEach(({idx, unitType}) => {
+                        if (dataCells[idx]) {
+                            const value = parseInt(dataCells[idx].textContent.replace(/\D/g, '')) || 0;
+                            
+                            // Decision logic: table label > row label > default
+                            if (isAttackerTable || (!isDefenderTable && !defaultToDefender && rowIsAttacker)) {
+                                if (isQuantity) report.attackerTroops[unitType] = value;
+                                if (isLosses) report.attackerLosses[unitType] = value;
+                            } else if (isDefenderTable || defaultToDefender || rowIsDefender) {
+                                if (isQuantity) report.defenderTroops[unitType] = value;
+                                if (isLosses) report.defenderLosses[unitType] = value;
+                            }
+                        }
+                    });
+                }
+            });
+            
+            console.log('Extracted troops:', {
+                attacker: report.attackerTroops,
+                defender: report.defenderTroops,
+                reportId: reportId
             });
 
             // Extract loot (from attack reports)
@@ -498,7 +543,12 @@ console.log('🎮 TW High Command v2.1 loaded!');
         const processBtn = document.getElementById('processBtn');
         const stopBtn = document.getElementById('stopBtn');
 
-        document.getElementById('settingsBtn').onclick = showSettings;
+        document.getElementById('settingsBtn').onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            showSettings();
+            return false;
+        };
         
         processBtn.onclick = async () => {
             if (!CONFIG.apiEndpoint) {
