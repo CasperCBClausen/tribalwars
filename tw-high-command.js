@@ -95,8 +95,11 @@ console.log('🎮 TW High Command v2.1 loaded!');
             }
             
             if (!isVillageReport) {
-                return; // Skip non-village reports
+                row.style.display = 'none'; // Hide non-village reports
+                return;
             }
+
+            row.style.display = ''; // Ensure visible
 
             const link = row.querySelector('a[href*="view="]');
             if (link) {
@@ -246,27 +249,58 @@ console.log('🎮 TW High Command v2.1 loaded!');
             if (clayMatch) report.resources.clay = parseInt(clayMatch[1]);
             if (ironMatch) report.resources.iron = parseInt(ironMatch[1]);
 
-            // Extract troops (visible in scout or combat reports)
-            const tables = content.querySelectorAll('table.vis');
+            // Extract troops (from combat and scout reports)
+            const unitTypes = ['spear', 'sword', 'axe', 'archer', 'spy', 'light', 'marcher', 'heavy', 'ram', 'catapult', 'knight', 'snob'];
+            
+            // Find all tables with troop information
+            const tables = content.querySelectorAll('table');
             tables.forEach(table => {
+                const tableText = table.textContent.toLowerCase();
+                
+                // Check if this table contains troop data
+                if (!unitTypes.some(unit => tableText.includes(unit))) return;
+                
                 const rows = table.querySelectorAll('tr');
                 rows.forEach(row => {
-                    const cells = Array.from(row.querySelectorAll('td'));
-                    const unitTypes = ['spear', 'sword', 'axe', 'archer', 'spy', 'light', 'marcher', 'heavy', 'ram', 'catapult', 'knight', 'snob'];
+                    const cells = Array.from(row.querySelectorAll('th, td'));
                     
+                    // Look for unit images in headers
                     cells.forEach((cell, idx) => {
                         const img = cell.querySelector('img');
                         if (!img) return;
                         
-                        const unitType = unitTypes.find(u => img.src.includes(u));
-                        if (!unitType || !cells[idx + 1]) return;
+                        // Identify unit type from image
+                        const unitType = unitTypes.find(u => img.src.includes(`unit_${u}`) || img.src.includes(u));
+                        if (!unitType) return;
                         
-                        const count = parseInt(cells[idx + 1].textContent.replace(/\D/g, '')) || 0;
+                        // The next rows should contain quantities
+                        const parentTable = cell.closest('table');
+                        const allRows = Array.from(parentTable.querySelectorAll('tr'));
+                        const headerRowIndex = allRows.indexOf(row);
                         
-                        // Try to determine if defender troops
-                        if (row.textContent.toLowerCase().includes('defender') || 
-                            row.textContent.toLowerCase().includes('quantity')) {
-                            report.defenderTroops[unitType] = count;
+                        // Look at subsequent rows for quantities
+                        for (let i = headerRowIndex + 1; i < Math.min(headerRowIndex + 5, allRows.length); i++) {
+                            const dataRow = allRows[i];
+                            const dataCells = Array.from(dataRow.querySelectorAll('td'));
+                            
+                            if (dataCells[idx]) {
+                                const value = parseInt(dataCells[idx].textContent.replace(/\D/g, '')) || 0;
+                                const rowLabel = dataRow.textContent.toLowerCase();
+                                
+                                // Determine what this row represents
+                                if (rowLabel.includes('attacker') && rowLabel.includes('quantity')) {
+                                    report.attackerTroops[unitType] = value;
+                                } else if (rowLabel.includes('attacker') && rowLabel.includes('losses')) {
+                                    report.attackerLosses[unitType] = value;
+                                } else if (rowLabel.includes('defender') && rowLabel.includes('quantity')) {
+                                    report.defenderTroops[unitType] = value;
+                                } else if (rowLabel.includes('defender') && rowLabel.includes('losses')) {
+                                    report.defenderLosses[unitType] = value;
+                                } else if (rowLabel.includes('quantity') && !report.defenderTroops[unitType]) {
+                                    // Default to defender troops for scout reports
+                                    report.defenderTroops[unitType] = value;
+                                }
+                            }
                         }
                     });
                 });
@@ -329,25 +363,46 @@ console.log('🎮 TW High Command v2.1 loaded!');
                 break;
             }
 
-            // Mark row as processing
+            // Mark row as processing with visible indicator
             link.row.style.backgroundColor = '#fff3cd';
+            link.row.style.border = '2px solid #ffa726';
+            
+            // Add processing indicator text to the row
+            const firstCell = link.row.querySelector('td');
+            if (firstCell) {
+                const originalContent = firstCell.innerHTML;
+                firstCell.innerHTML = '⏳ Processing... ' + originalContent;
+                link.row.originalContent = originalContent;
+            }
             
             try {
                 const reportData = await fetchReportData(link.url, link.reportId);
                 
-                if (reportData && reportData.attackerCoords && reportData.defenderCoords) {
+                if (reportData && reportData.defenderCoords) {
                     await sendReportData(reportData);
                     success++;
                     link.row.style.backgroundColor = '#d4edda';
+                    link.row.style.border = '2px solid #28a745';
+                    if (firstCell && link.row.originalContent) {
+                        firstCell.innerHTML = '✓ ' + link.row.originalContent;
+                    }
                     link.processed = true;
                 } else {
                     failed++;
                     link.row.style.backgroundColor = '#f8d7da';
+                    link.row.style.border = '2px solid #dc3545';
+                    if (firstCell && link.row.originalContent) {
+                        firstCell.innerHTML = '✗ ' + link.row.originalContent;
+                    }
                 }
             } catch (error) {
                 console.error(`Failed to process report ${link.reportId}:`, error);
                 failed++;
                 link.row.style.backgroundColor = '#f8d7da';
+                link.row.style.border = '2px solid #dc3545';
+                if (firstCell && link.row.originalContent) {
+                    firstCell.innerHTML = '✗ ' + link.row.originalContent;
+                }
             }
 
             processed++;
@@ -391,15 +446,23 @@ console.log('🎮 TW High Command v2.1 loaded!');
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
 
-        dialog.querySelector('#saveBtn').onclick = () => {
+        // Prevent clicks inside dialog from closing it
+        dialog.onclick = (e) => e.stopPropagation();
+
+        dialog.querySelector('#saveBtn').onclick = (e) => {
+            e.stopPropagation();
             CONFIG.apiEndpoint = dialog.querySelector('#apiInput').value.trim();
             saveConfig();
             alert('Settings saved!');
             overlay.remove();
         };
 
-        dialog.querySelector('#cancelBtn').onclick = () => overlay.remove();
-        overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+        dialog.querySelector('#cancelBtn').onclick = (e) => {
+            e.stopPropagation();
+            overlay.remove();
+        };
+
+        overlay.onclick = () => overlay.remove();
     }
 
     function createUI() {
