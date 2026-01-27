@@ -138,11 +138,20 @@ console.log('🎮 TW High Command v2.1 loaded!');
                 defenderPlayerId: null,
                 defenderPlayerName: null,
                 
+                // Forward information
+                forwardedOn: null,
+                forwardedBy: null,
+                
+                // Battle modifiers
+                morale: null,
+                luck: null,
+                
                 // Military info
                 attackerTroops: {},
                 defenderTroops: {},
                 attackerLosses: {},
                 defenderLosses: {},
+                defenderUnitsAway: {}, // Units outside village during scout
                 
                 // Scout/spy info
                 buildingLevels: {}, // headquarters, barracks, stable, etc.
@@ -280,13 +289,43 @@ console.log('🎮 TW High Command v2.1 loaded!');
             });
 
             // Extract resources (from scout reports)
-            const resourceMatch = content.innerHTML.match(/wood"\s*\/>\s*(\d+)/i);
-            const clayMatch = content.innerHTML.match(/clay"\s*\/>\s*(\d+)/i);
-            const ironMatch = content.innerHTML.match(/iron"\s*\/>\s*(\d+)/i);
+            const resourceMatch = content.innerHTML.match(/wood"\s*\/>\s*([\d.]+)/i);
+            const clayMatch = content.innerHTML.match(/clay"\s*\/>\s*([\d.]+)/i);
+            const ironMatch = content.innerHTML.match(/iron"\s*\/>\s*([\d.]+)/i);
             
-            if (resourceMatch) report.resources.wood = parseInt(resourceMatch[1]);
-            if (clayMatch) report.resources.clay = parseInt(clayMatch[1]);
-            if (ironMatch) report.resources.iron = parseInt(ironMatch[1]);
+            if (resourceMatch) report.resources.wood = parseInt(resourceMatch[1].replace(/\D/g, ''));
+            if (clayMatch) report.resources.clay = parseInt(clayMatch[1].replace(/\D/g, ''));
+            if (ironMatch) report.resources.iron = parseInt(ironMatch[1].replace(/\D/g, ''));
+
+            // Extract morale and luck
+            const moraleMatch = text.match(/morale:\s*(\d+)%/i);
+            if (moraleMatch) report.morale = parseInt(moraleMatch[1]);
+            
+            const luckMatch = text.match(/luck[^\d]*([-\d.]+)%/i);
+            if (luckMatch) report.luck = parseFloat(luckMatch[1]);
+            
+            // Extract forwarded information
+            const forwardedOnMatch = text.match(/forwarded on:\s*([^<\n]+)/i);
+            if (forwardedOnMatch) report.forwardedOn = forwardedOnMatch[1].trim();
+            
+            const forwardedByMatch = content.innerHTML.match(/forwarded by:.*?<a[^>]*>([^<]+)<\/a>/i);
+            if (forwardedByMatch) report.forwardedBy = forwardedByMatch[1].trim();
+            
+            // Extract units away (from scout reports showing units outside village)
+            const unitsAwayTable = content.querySelector('#attack_spy_away table.vis');
+            if (unitsAwayTable) {
+                const awayRows = Array.from(unitsAwayTable.querySelectorAll('tr'));
+                if (awayRows.length >= 2) {
+                    const cells = Array.from(awayRows[1].querySelectorAll('td'));
+                    const unitTypes = ['spear', 'sword', 'axe', 'archer', 'spy', 'light', 'marcher', 'heavy', 'ram', 'catapult', 'knight', 'snob'];
+                    cells.forEach((cell, idx) => {
+                        const count = parseInt(cell.textContent.replace(/\D/g, '')) || 0;
+                        if (count > 0 && idx < unitTypes.length) {
+                            report.defenderUnitsAway[unitTypes[idx]] = count;
+                        }
+                    });
+                }
+            }
 
             // Extract troops (from combat and scout reports)
             const unitTypes = ['spear', 'sword', 'axe', 'archer', 'spy', 'light', 'marcher', 'heavy', 'ram', 'catapult', 'knight', 'snob'];
