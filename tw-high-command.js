@@ -414,14 +414,28 @@
     // Initialize script
     function init() {
         loadConfig();
+        
+        // Prompt for API endpoint on first run
+        if (!CONFIG.apiEndpoint) {
+            const endpoint = prompt(
+                '🎮 TW High Command - First Time Setup\n\n' +
+                'Enter your API endpoint URL:\n' +
+                '(e.g., http://localhost:3000 for local setup)\n\n' +
+                'You can change this later in Settings.',
+                'http://localhost:3000'
+            );
+            
+            if (endpoint) {
+                CONFIG.apiEndpoint = endpoint.trim();
+                saveConfig();
+                alert('✓ API endpoint saved!\n\nYou can now save reports to your database.');
+            }
+        }
+        
         createUI();
         
         console.log(`[${CONFIG.scriptName} v${CONFIG.version}] Loaded by ${CONFIG.author}`);
-        
-        // Show first-time setup message
-        if (!CONFIG.apiEndpoint) {
-            console.log('[TW High Command] First time setup: Click Settings to configure your API endpoint');
-        }
+        console.log(`[TW High Command] API endpoint: ${CONFIG.apiEndpoint || 'Not configured'}`);
     }
 
     // Wait for page load
