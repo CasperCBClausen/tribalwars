@@ -162,57 +162,51 @@ console.log('🎮 TW High Command v2.1 loaded!');
             const text = content.textContent.toLowerCase();
             const fullHTML = content.innerHTML;
 
-            // Extract report timestamp - try multiple formats and locations
+            // Extract report timestamp - battle time from the report
             let reportTimestamp = null;
             
-            // Try format: "Sent on 27. Jan 2026, 15:30:45"
-            const dateMatch1 = text.match(/sent on\s+(\d+)\.\s+(\w+)\s+(\d+)[,\s]+(\d+):(\d+):(\d+)/i);
+            // Format from HTML: " Jan 20, 2026 16:52:39"
+            const dateMatch1 = fullHTML.match(/"\s*(\w+)\s+(\d+),\s+(\d+)\s+(\d+):(\d+):(\d+)"/);
             if (dateMatch1) {
-                const [, day, monthStr, year, hour, min, sec] = dateMatch1;
+                const [, monthStr, day, year, hour, min, sec] = dateMatch1;
                 const months = {
                     'jan': 0, 'feb': 1, 'mar': 2, 'apr': 3, 'may': 4, 'jun': 5,
                     'jul': 6, 'aug': 7, 'sep': 8, 'oct': 9, 'nov': 10, 'dec': 11
                 };
-                const month = months[monthStr.toLowerCase().substring(0, 3)];
+                const month = months[monthStr.toLowerCase()];
                 if (month !== undefined) {
                     reportTimestamp = new Date(year, month, day, hour, min, sec).getTime();
                 }
             }
             
-            // Try format: "on 27.01.2026 at 15:30:45"
+            // Try alternative format: "Sent on 27. Jan 2026, 15:30:45"
             if (!reportTimestamp) {
-                const dateMatch2 = text.match(/on\s+(\d+)\.(\d+)\.(\d+)\s+at\s+(\d+):(\d+):(\d+)/i);
+                const dateMatch2 = text.match(/sent\s+on\s+(\d+)\.\s+(\w+)\s+(\d+)[,\s]+(\d+):(\d+):(\d+)/i);
                 if (dateMatch2) {
-                    const [, day, month, year, hour, min, sec] = dateMatch2;
-                    reportTimestamp = new Date(year, month - 1, day, hour, min, sec).getTime();
-                }
-            }
-            
-            // Try format in table: look for date in first table row
-            if (!reportTimestamp) {
-                const tables = content.querySelectorAll('table.vis');
-                for (const table of tables) {
-                    const firstRow = table.querySelector('tr:first-child td');
-                    if (firstRow) {
-                        const rowText = firstRow.textContent;
-                        const dateMatch3 = rowText.match(/(\d+)\.\s+(\w+)\s+(\d+)[,\s]+(\d+):(\d+):(\d+)/);
-                        if (dateMatch3) {
-                            const [, day, monthStr, year, hour, min, sec] = dateMatch3;
-                            const months = {
-                                'jan': 0, 'feb': 1, 'mar': 2, 'apr': 3, 'may': 4, 'jun': 5,
-                                'jul': 6, 'aug': 7, 'sep': 8, 'oct': 9, 'nov': 10, 'dec': 11
-                            };
-                            const month = months[monthStr.toLowerCase().substring(0, 3)];
-                            if (month !== undefined) {
-                                reportTimestamp = new Date(year, month, day, hour, min, sec).getTime();
-                                break;
-                            }
-                        }
+                    const [, day, monthStr, year, hour, min, sec] = dateMatch2;
+                    const months = {
+                        'jan': 0, 'feb': 1, 'mar': 2, 'apr': 3, 'may': 4, 'jun': 5,
+                        'jul': 6, 'aug': 7, 'sep': 8, 'oct': 9, 'nov': 10, 'dec': 11
+                    };
+                    const month = months[monthStr.toLowerCase().substring(0, 3)];
+                    if (month !== undefined) {
+                        reportTimestamp = new Date(year, month, day, hour, min, sec).getTime();
                     }
                 }
             }
             
+            // Try format: "on 27.01.2026 at 15:30:45"
+            if (!reportTimestamp) {
+                const dateMatch3 = text.match(/on\s+(\d+)\.(\d+)\.(\d+)\s+at\s+(\d+):(\d+):(\d+)/i);
+                if (dateMatch3) {
+                    const [, day, month, year, hour, min, sec] = dateMatch3;
+                    reportTimestamp = new Date(year, month - 1, day, hour, min, sec).getTime();
+                }
+            }
+            
             report.reportTimestamp = reportTimestamp;
+            
+            console.log('Extracted timestamp:', reportTimestamp, 'from report', reportId);
 
             // Determine report type - be more precise
             // Scout report = has espionage/scout text AND actually scouted something (resources or buildings visible)
