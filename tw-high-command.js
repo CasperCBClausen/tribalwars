@@ -1,444 +1,326 @@
 /*
  * Script Name: TW High Command
  * Author: NeilB
- * Version: 1.0.0
- * Description: Track and analyze combat reports with external database storage (Rule Compliant)
+ * Version: 2.0.0
+ * Description: Batch process combat reports from overview page (Rule Compliant)
  * 
  * COMPLIANCE NOTES:
- * - This script does NOT send player names, player IDs, tribe names, or tribe IDs to external servers
- * - Only sends village coordinates and battle statistics (non-identifying data)
- * - Requires manual user action (button click) to send data
- * - Does not interact with Farm Assistant
- * - Does not auto-send attacks or interact with rally point buttons
- * - Does not exceed action limitations
+ * - This script does NOT send player names, player IDs, tribe names, or tribe IDs
+ * - Only sends coordinates and battle statistics (non-identifying data)
+ * - Requires manual button click to start processing
+ * - Rate limited to 5 reports per second (respects server rules)
+ * - Does not interact with Farm Assistant, Rally Point, or Premium Exchange
  * - Not obfuscated
  */
+
+console.log('🎮 TW High Command v2.0 loaded!');
 
 (function() {
     'use strict';
 
-    // Configuration
     const CONFIG = {
         scriptName: 'TW High Command',
-        version: '1.0.0',
+        version: '2.0.0',
         author: 'NeilB',
-        apiEndpoint: '', // User must configure this
-        localStorageKey: 'twHighCommand_config'
+        apiEndpoint: '',
+        localStorageKey: 'twHighCommand_config',
+        delayBetweenReports: 200 // 5 reports/second = 200ms delay
     };
 
-    // Load user configuration
+    // Load/save configuration
     function loadConfig() {
         const saved = localStorage.getItem(CONFIG.localStorageKey);
         if (saved) {
             try {
-                const parsed = JSON.parse(saved);
-                CONFIG.apiEndpoint = parsed.apiEndpoint || '';
-            } catch (e) {
-                console.error('Failed to load config:', e);
-            }
+                CONFIG.apiEndpoint = JSON.parse(saved).apiEndpoint || '';
+            } catch (e) {}
         }
     }
 
-    // Save user configuration
     function saveConfig() {
-        const config = {
+        localStorage.setItem(CONFIG.localStorageKey, JSON.stringify({
             apiEndpoint: CONFIG.apiEndpoint
-        };
-        localStorage.setItem(CONFIG.localStorageKey, JSON.stringify(config));
+        }));
     }
 
-    // Extract world ID from current URL
     function getWorldId() {
         const match = window.location.hostname.match(/([a-z]+\d+)/);
         return match ? match[1] : 'unknown';
     }
 
-    // Extract report data from the page (ONLY non-identifying data)
-    function extractReportData() {
-        // Verify we're on a report page
-        if (!window.location.href.includes('screen=report')) {
-            return null;
-        }
+    function isReportsOverviewPage() {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('screen') === 'report' && !params.get('view');
+    }
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const reportId = urlParams.get('view');
-        
-        if (!reportId) {
-            return null;
-        }
+    function getReportLinks() {
+        const links = [];
+        document.querySelectorAll('table#report_list tr').forEach(row => {
+            const link = row.querySelector('a[href*="view="]');
+            if (link) {
+                const match = link.href.match(/view=(\d+)/);
+                if (match) {
+                    links.push({ reportId: match[1], url: link.href, element: row });
+                }
+            }
+        });
+        return links;
+    }
 
-        const report = {
-            // Safe to send - not identifying
-            reportId: reportId,
-            worldId: getWorldId(),
-            timestamp: Date.now(),
-            
-            // Coordinates only (PUBLIC data from map)
-            attackerCoords: null,
-            defenderCoords: null,
-            
-            // Battle data (non-identifying)
-            attackerTroops: {},
-            defenderTroops: {},
-            attackerLosses: {},
-            defenderLosses: {},
-            attackerSurvivors: {},
-            defenderSurvivors: {},
-            
-            // Results (non-identifying)
-            haul: { wood: 0, clay: 0, iron: 0 },
-            maxHaul: 0,
-            loyalty: null,
-            loyaltyChange: null,
-            morale: null,
-            luck: null,
-            outcome: null,
-            espionageLevel: null
-        };
-
+    async function fetchReportData(reportUrl, reportId) {
         try {
-            // Extract attacker village coordinates
-            const contentValue = document.getElementById('content_value');
-            if (!contentValue) return null;
+            const response = await fetch(reportUrl);
+            const html = await response.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
 
-            // Find coordinate links - these are public information
-            const villageLinks = contentValue.querySelectorAll('a[href*="screen=info_village"]');
-            
+            const report = {
+                reportId: reportId,
+                worldId: getWorldId(),
+                timestamp: Date.now(),
+                attackerCoords: null,
+                defenderCoords: null,
+                attackerTroops: {},
+                defenderTroops: {},
+                attackerLosses: {},
+                defenderLosses: {},
+                haul: { wood: 0, clay: 0, iron: 0 },
+                maxHaul: 0,
+                loyalty: null,
+                loyaltyChange: null,
+                outcome: null
+            };
+
+            const content = doc.getElementById('content_value');
+            if (!content) return null;
+
+            // Extract coordinates
+            const villageLinks = content.querySelectorAll('a[href*="screen=info_village"]');
             if (villageLinks.length >= 2) {
-                // First is attacker, second is defender
                 const attackerMatch = villageLinks[0].textContent.match(/(\d+)\|(\d+)/);
                 const defenderMatch = villageLinks[1].textContent.match(/(\d+)\|(\d+)/);
-                
                 if (attackerMatch) report.attackerCoords = `${attackerMatch[1]}|${attackerMatch[2]}`;
                 if (defenderMatch) report.defenderCoords = `${defenderMatch[1]}|${defenderMatch[2]}`;
             }
 
-            // Extract troop data from tables
-            const unitTypes = ['spear', 'sword', 'axe', 'archer', 'spy', 'light', 'marcher', 'heavy', 'ram', 'catapult', 'knight', 'snob'];
-            
-            // Find attacker and defender unit rows
-            const tables = contentValue.querySelectorAll('table.vis');
-            
-            tables.forEach(table => {
-                const headerRow = table.querySelector('tr:first-child');
-                if (!headerRow) return;
-                
-                const headerText = headerRow.textContent.toLowerCase();
-                
-                // Determine if this is attacker or defender table
-                const isAttacker = headerText.includes('attacker') || table.querySelector('.attack_label');
-                const isDefender = headerText.includes('defender') || table.querySelector('.defense_label');
-                
-                if (!isAttacker && !isDefender) return;
-                
-                // Parse unit rows
-                const unitRows = table.querySelectorAll('tr');
-                unitRows.forEach(row => {
-                    const cells = Array.from(row.querySelectorAll('td'));
-                    
-                    cells.forEach((cell, idx) => {
-                        const unitImg = cell.querySelector('img');
-                        if (!unitImg) return;
-                        
-                        // Determine unit type from image
-                        const unitType = unitTypes.find(type => unitImg.src.includes(type));
-                        if (!unitType) return;
-                        
-                        // Get count from next cell
-                        const countCell = cells[idx + 1];
-                        if (!countCell) return;
-                        
-                        const count = parseInt(countCell.textContent.replace(/\D/g, '')) || 0;
-                        
-                        // Store in appropriate object
-                        if (row.textContent.toLowerCase().includes('quantity') || row.textContent.toLowerCase().includes('actual')) {
-                            if (isAttacker) report.attackerTroops[unitType] = count;
-                            if (isDefender) report.defenderTroops[unitType] = count;
-                        } else if (row.textContent.toLowerCase().includes('losses')) {
-                            if (isAttacker) report.attackerLosses[unitType] = count;
-                            if (isDefender) report.defenderLosses[unitType] = count;
-                        }
-                    });
-                });
-            });
+            // Extract loot
+            const text = content.textContent;
+            const haulMatch = text.match(/Haul:\s*(\d+)\/(\d+)/i);
+            if (haulMatch) report.maxHaul = parseInt(haulMatch[2]);
 
-            // Calculate survivors
-            for (const unit in report.attackerTroops) {
-                report.attackerSurvivors[unit] = 
-                    (report.attackerTroops[unit] || 0) - (report.attackerLosses[unit] || 0);
-            }
-            for (const unit in report.defenderTroops) {
-                report.defenderSurvivors[unit] = 
-                    (report.defenderTroops[unit] || 0) - (report.defenderLosses[unit] || 0);
-            }
-
-            // Extract haul/loot
-            const haulText = contentValue.textContent;
-            const haulMatch = haulText.match(/Haul:\s*(\d+)\/(\d+)/i);
-            if (haulMatch) {
-                report.maxHaul = parseInt(haulMatch[2]);
-            }
-
-            // Extract individual resources
-            const woodMatch = haulText.match(/(\d+)\s*wood/i) || haulText.match(/wood"\s*\/>\s*(\d+)/i);
-            const clayMatch = haulText.match(/(\d+)\s*clay/i) || haulText.match(/clay"\s*\/>\s*(\d+)/i);
-            const ironMatch = haulText.match(/(\d+)\s*iron/i) || haulText.match(/iron"\s*\/>\s*(\d+)/i);
+            const woodMatch = text.match(/(\d+)\s*wood/i) || text.match(/wood"\s*\/>\s*(\d+)/i);
+            const clayMatch = text.match(/(\d+)\s*clay/i) || text.match(/clay"\s*\/>\s*(\d+)/i);
+            const ironMatch = text.match(/(\d+)\s*iron/i) || text.match(/iron"\s*\/>\s*(\d+)/i);
             
             if (woodMatch) report.haul.wood = parseInt(woodMatch[1]);
             if (clayMatch) report.haul.clay = parseInt(clayMatch[1]);
             if (ironMatch) report.haul.iron = parseInt(ironMatch[1]);
 
             // Extract loyalty
-            const loyaltyMatch = haulText.match(/Loyalty:\s*(\d+)\s*→\s*(\d+)/i);
+            const loyaltyMatch = text.match(/Loyalty:\s*(\d+)\s*→\s*(\d+)/i);
             if (loyaltyMatch) {
-                const before = parseInt(loyaltyMatch[1]);
-                const after = parseInt(loyaltyMatch[2]);
-                report.loyalty = after;
-                report.loyaltyChange = before - after;
+                report.loyalty = parseInt(loyaltyMatch[2]);
+                report.loyaltyChange = parseInt(loyaltyMatch[1]) - parseInt(loyaltyMatch[2]);
             }
-
-            // Extract morale and luck
-            const moraleMatch = haulText.match(/Morale:\s*(\d+)%/i);
-            const luckMatch = haulText.match(/Luck:\s*([-\d.]+)%/i);
-            
-            if (moraleMatch) report.morale = parseInt(moraleMatch[1]);
-            if (luckMatch) report.luck = parseFloat(luckMatch[1]);
 
             // Determine outcome
-            const bodyText = contentValue.textContent.toLowerCase();
-            if (bodyText.includes('the attacker has won') || bodyText.includes('won')) {
-                report.outcome = 'attacker_won';
-            } else if (bodyText.includes('the defender has won') || bodyText.includes('lost')) {
-                report.outcome = 'defender_won';
-            } else if (bodyText.includes('both sides')) {
-                report.outcome = 'draw';
-            }
-
-            // Check if espionage report
-            if (bodyText.includes('espionage') || bodyText.includes('scout')) {
-                report.espionageLevel = bodyText.includes('resources') ? 'resources' : 'basic';
-            }
+            const lower = text.toLowerCase();
+            if (lower.includes('attacker has won')) report.outcome = 'attacker_won';
+            else if (lower.includes('defender has won')) report.outcome = 'defender_won';
 
             return report;
-
         } catch (error) {
-            console.error('[TW High Command] Error extracting report:', error);
+            console.error(`Error fetching report ${reportId}:`, error);
             return null;
         }
     }
 
-    // Send report data to backend API
     async function sendReportData(reportData) {
-        if (!CONFIG.apiEndpoint) {
-            alert('Please configure your API endpoint first!\n\nGo to Settings to set up TW High Command.');
-            return false;
-        }
-
-        if (!reportData || !reportData.attackerCoords || !reportData.defenderCoords) {
-            alert('Could not extract complete report data. Please ensure you are viewing a valid combat report.');
-            return false;
-        }
-
-        try {
-            const response = await fetch(`${CONFIG.apiEndpoint}/api/report`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(reportData)
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            const result = await response.json();
-            return result;
-
-        } catch (error) {
-            console.error('[TW High Command] Failed to send report:', error);
-            throw error;
-        }
+        const response = await fetch(`${CONFIG.apiEndpoint}/api/report`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(reportData)
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return await response.json();
     }
 
-    // Create settings dialog
-    function showSettings() {
+    function createProgressUI() {
         const overlay = document.createElement('div');
-        overlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.7);
-            z-index: 10000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        `;
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:10000;display:flex;align-items:center;justify-content:center;';
 
         const dialog = document.createElement('div');
-        dialog.style.cssText = `
-            background: #f4e4bc;
-            border: 2px solid #7d510f;
-            padding: 20px;
-            border-radius: 8px;
-            max-width: 500px;
-            width: 90%;
-        `;
+        dialog.style.cssText = 'background:#f4e4bc;border:2px solid #7d510f;padding:30px;border-radius:8px;max-width:500px;width:90%;text-align:center;';
 
         dialog.innerHTML = `
-            <h2 style="margin-top: 0; color: #7d510f;">⚔️ TW High Command Settings</h2>
-            <p style="margin: 10px 0; color: #333;">
-                <strong>Note:</strong> This script only sends coordinates and battle statistics to your backend.
-                Player names and IDs are added by your backend using villages.txt.
-            </p>
-            
-            <label style="display: block; margin: 15px 0 5px; font-weight: bold; color: #7d510f;">
-                API Endpoint:
-            </label>
-            <input type="text" id="apiEndpointInput" 
-                   value="${CONFIG.apiEndpoint}" 
-                   placeholder="https://your-api.vercel.app"
-                   style="width: 100%; padding: 8px; border: 1px solid #7d510f; border-radius: 4px;">
-            
-            <div style="margin-top: 20px; text-align: right;">
-                <button id="cancelBtn" style="margin-right: 10px; padding: 8px 16px; background: #ccc; border: none; border-radius: 4px; cursor: pointer;">
-                    Cancel
-                </button>
-                <button id="saveBtn" style="padding: 8px 16px; background: #7d510f; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                    Save
-                </button>
+            <h2 style="margin-top:0;color:#7d510f;">⚔️ Processing Reports</h2>
+            <div style="width:100%;height:30px;background:#ddd;border-radius:15px;overflow:hidden;margin:20px 0;">
+                <div id="progressFill" style="width:0%;height:100%;background:linear-gradient(90deg,#7d510f,#a0691f);transition:width 0.3s;"></div>
+            </div>
+            <div id="progressText" style="font-size:18px;margin:15px 0;color:#333;">Processing 0 of 0...</div>
+            <div id="statsText" style="font-size:14px;color:#666;">✓ Success: 0 | ✗ Failed: 0</div>
+            <button id="cancelBtn" style="margin-top:20px;padding:10px 20px;background:#dc3545;color:white;border:none;border-radius:4px;cursor:pointer;">Cancel</button>
+        `;
+
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+
+        let cancelled = false;
+        dialog.querySelector('#cancelBtn').onclick = () => { cancelled = true; overlay.remove(); };
+
+        return {
+            update: (processed, total, success, failed) => {
+                if (cancelled) throw new Error('Cancelled');
+                dialog.querySelector('#progressFill').style.width = `${(processed/total)*100}%`;
+                dialog.querySelector('#progressText').textContent = `Processing ${processed} of ${total}...`;
+                dialog.querySelector('#statsText').innerHTML = `✓ Success: <span style="color:#28a745;">${success}</span> | ✗ Failed: <span style="color:#dc3545;">${failed}</span>`;
+            },
+            complete: (success, failed) => {
+                const btn = dialog.querySelector('#cancelBtn');
+                btn.textContent = 'Close';
+                btn.style.background = '#28a745';
+                dialog.querySelector('#progressText').textContent = 'Complete!';
+                dialog.querySelector('#progressText').style.color = '#28a745';
+                btn.onclick = () => overlay.remove();
+            }
+        };
+    }
+
+    async function processAllReports(links, progressUI) {
+        let processed = 0, success = 0, failed = 0;
+
+        for (const link of links) {
+            try {
+                const reportData = await fetchReportData(link.url, link.reportId);
+                if (reportData) {
+                    await sendReportData(reportData);
+                    success++;
+                    link.element.style.backgroundColor = '#d4edda';
+                } else {
+                    failed++;
+                    link.element.style.backgroundColor = '#f8d7da';
+                }
+            } catch (error) {
+                failed++;
+                link.element.style.backgroundColor = '#f8d7da';
+            }
+
+            processed++;
+            progressUI.update(processed, links.length, success, failed);
+
+            if (processed < links.length) {
+                await new Promise(r => setTimeout(r, CONFIG.delayBetweenReports));
+            }
+        }
+
+        progressUI.complete(success, failed);
+    }
+
+    function showSettings() {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;';
+
+        const dialog = document.createElement('div');
+        dialog.style.cssText = 'background:#f4e4bc;border:2px solid #7d510f;padding:20px;border-radius:8px;max-width:500px;width:90%;';
+
+        dialog.innerHTML = `
+            <h2 style="margin-top:0;color:#7d510f;">⚔️ Settings</h2>
+            <p style="color:#333;"><strong>Note:</strong> Only coordinates and battle stats are sent to your backend.</p>
+            <label style="display:block;margin:15px 0 5px;font-weight:bold;color:#7d510f;">API Endpoint:</label>
+            <input type="text" id="apiInput" value="${CONFIG.apiEndpoint}" placeholder="http://localhost:3000" style="width:100%;padding:8px;border:1px solid #7d510f;border-radius:4px;">
+            <div style="margin-top:20px;text-align:right;">
+                <button id="cancelBtn" style="margin-right:10px;padding:8px 16px;background:#ccc;border:none;border-radius:4px;cursor:pointer;">Cancel</button>
+                <button id="saveBtn" style="padding:8px 16px;background:#7d510f;color:white;border:none;border-radius:4px;cursor:pointer;">Save</button>
             </div>
         `;
 
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
 
-        // Event listeners
-        document.getElementById('saveBtn').onclick = () => {
-            CONFIG.apiEndpoint = document.getElementById('apiEndpointInput').value.trim();
+        dialog.querySelector('#saveBtn').onclick = () => {
+            CONFIG.apiEndpoint = dialog.querySelector('#apiInput').value.trim();
             saveConfig();
             alert('Settings saved!');
             overlay.remove();
         };
 
-        document.getElementById('cancelBtn').onclick = () => {
-            overlay.remove();
-        };
+        dialog.querySelector('#cancelBtn').onclick = () => overlay.remove();
+        overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    }
 
-        overlay.onclick = (e) => {
-            if (e.target === overlay) {
-                overlay.remove();
+    function createUI() {
+        const reportList = document.querySelector('#report_list');
+        if (!reportList) return;
+
+        const panel = document.createElement('div');
+        panel.style.cssText = 'background:#f4e4bc;border:2px solid #7d510f;padding:15px;margin-bottom:15px;border-radius:5px;';
+
+        const reportCount = getReportLinks().length;
+
+        panel.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div>
+                    <strong style="color:#7d510f;font-size:16px;">⚔️ TW High Command</strong>
+                    <span style="color:#666;margin-left:10px;font-size:12px;">by ${CONFIG.author} | Found ${reportCount} reports</span>
+                </div>
+                <div>
+                    <button id="settingsBtn" class="btn" style="margin-right:5px;">⚙️ Settings</button>
+                    <button id="processBtn" class="btn" style="background:#7d510f;color:white;">📊 Process All Reports</button>
+                </div>
+            </div>
+            <div style="margin-top:10px;font-size:12px;color:#666;">Rate limited to 5 reports/second. Estimated time: ${Math.ceil(reportCount/5)} seconds</div>
+        `;
+
+        reportList.parentNode.insertBefore(panel, reportList);
+
+        panel.querySelector('#settingsBtn').onclick = showSettings;
+        
+        panel.querySelector('#processBtn').onclick = async () => {
+            if (!CONFIG.apiEndpoint) {
+                alert('Please configure your API endpoint first!');
+                showSettings();
+                return;
+            }
+
+            const links = getReportLinks();
+            if (links.length === 0) {
+                alert('No reports found.');
+                return;
+            }
+
+            if (!confirm(`Process ${links.length} reports?\n\nAPI: ${CONFIG.apiEndpoint}\nTime: ~${Math.ceil(links.length/5)} seconds`)) return;
+
+            const progressUI = createProgressUI();
+            try {
+                await processAllReports(links, progressUI);
+            } catch (error) {
+                alert('Processing stopped: ' + error.message);
             }
         };
     }
 
-    // Create UI elements
-    function createUI() {
-        // Only show UI on report pages
-        if (!window.location.href.includes('screen=report')) {
+    function init() {
+        loadConfig();
+
+        if (!isReportsOverviewPage()) {
+            if (confirm('⚠️ TW High Command\n\nThis script must be run from the Reports Overview page.\n\nClick OK to go there now.')) {
+                window.location.href = 'game.php?screen=report';
+            }
             return;
         }
 
-        const reportHeader = document.querySelector('#content_value h2');
-        if (!reportHeader) return;
-
-        // Create button container
-        const buttonContainer = document.createElement('div');
-        buttonContainer.style.cssText = 'display: inline-block; margin-left: 15px;';
-
-        // Save Report button
-        const saveButton = document.createElement('button');
-        saveButton.textContent = '📊 Save to High Command';
-        saveButton.className = 'btn';
-        saveButton.style.cssText = 'margin-right: 5px;';
-        saveButton.onclick = async function() {
-            this.disabled = true;
-            this.textContent = '⏳ Saving...';
-            
-            try {
-                const reportData = extractReportData();
-                
-                if (!reportData) {
-                    alert('Could not extract report data. Please ensure this is a valid combat report.');
-                    return;
-                }
-
-                const result = await sendReportData(reportData);
-                
-                if (result && result.success) {
-                    this.textContent = '✓ Saved!';
-                    this.style.background = '#28a745';
-                    
-                    // Show enriched player names if available
-                    if (result.enriched) {
-                        setTimeout(() => {
-                            alert(`Report saved!\n\nAttacker: ${result.enriched.attackerPlayer}\nDefender: ${result.enriched.defenderPlayer}`);
-                        }, 200);
-                    }
-                    
-                    setTimeout(() => {
-                        this.textContent = '📊 Save to High Command';
-                        this.style.background = '';
-                        this.disabled = false;
-                    }, 2000);
-                } else {
-                    throw new Error('Failed to save report');
-                }
-                
-            } catch (error) {
-                alert(`Failed to save report:\n${error.message}\n\nPlease check your API endpoint in Settings.`);
-                this.textContent = '❌ Failed';
-                this.style.background = '#dc3545';
-                
-                setTimeout(() => {
-                    this.textContent = '📊 Save to High Command';
-                    this.style.background = '';
-                    this.disabled = false;
-                }, 2000);
-            }
-        };
-
-        // Settings button
-        const settingsButton = document.createElement('button');
-        settingsButton.textContent = '⚙️ Settings';
-        settingsButton.className = 'btn';
-        settingsButton.onclick = showSettings;
-
-        buttonContainer.appendChild(saveButton);
-        buttonContainer.appendChild(settingsButton);
-        reportHeader.appendChild(buttonContainer);
-    }
-
-    // Initialize script
-    function init() {
-        loadConfig();
-        
-        // Prompt for API endpoint on first run
         if (!CONFIG.apiEndpoint) {
-            const endpoint = prompt(
-                '🎮 TW High Command - First Time Setup\n\n' +
-                'Enter your API endpoint URL:\n' +
-                '(e.g., http://localhost:3000 for local setup)\n\n' +
-                'You can change this later in Settings.',
-                'http://localhost:3000'
-            );
-            
+            const endpoint = prompt('🎮 TW High Command - Setup\n\nEnter your API endpoint URL:', 'http://localhost:3000');
             if (endpoint) {
                 CONFIG.apiEndpoint = endpoint.trim();
                 saveConfig();
-                alert('✓ API endpoint saved!\n\nYou can now save reports to your database.');
             }
         }
-        
+
         createUI();
-        
-        console.log(`[${CONFIG.scriptName} v${CONFIG.version}] Loaded by ${CONFIG.author}`);
-        console.log(`[TW High Command] API endpoint: ${CONFIG.apiEndpoint || 'Not configured'}`);
+        console.log(`[${CONFIG.scriptName} v${CONFIG.version}] Ready. Found ${getReportLinks().length} reports.`);
     }
 
-    // Wait for page load
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
