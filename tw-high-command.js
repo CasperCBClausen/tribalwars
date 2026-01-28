@@ -356,8 +356,8 @@ console.log('🎮 TW High Command v2.1 loaded!');
             const unitTypes = ['spear', 'sword', 'axe', 'archer', 'spy', 'light', 'marcher', 'heavy', 'ram', 'catapult', 'knight', 'snob'];
             
             // Find troop tables - they have specific structure with unit icons
-            const tables = content.querySelectorAll('table');
-            tables.forEach(table => {
+            const troopTables = content.querySelectorAll('table');
+            troopTables.forEach(table => {
                 const tableHTML = table.innerHTML.toLowerCase();
                 
                 // Skip if no unit images
