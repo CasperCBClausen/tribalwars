@@ -156,6 +156,7 @@ console.log('🎮 TW High Command v2.1 loaded!');
                 // Scout/spy info
                 buildingLevels: {}, // headquarters, barracks, stable, etc.
                 resources: { wood: null, clay: null, iron: null },
+                relic: null, // Relic level if scouted
                 
                 // Combat results
                 haul: { wood: 0, clay: 0, iron: 0 },
@@ -222,36 +223,41 @@ console.log('🎮 TW High Command v2.1 loaded!');
             report.reportTimestamp = reportTimestamp;
             console.log(`[DEBUG] Final reportTimestamp for ${reportId}: ${reportTimestamp}`);
 
-            // Determine report type - be very precise about scout reports
-            // Scout report MUST have espionage section with actual intelligence
-            const hasEspionageSection = content.querySelector('#attack_spy_resources, #attack_spy_buildings_left, #attack_spy_away');
-            const hasResourceInfo = content.querySelector('#attack_spy_resources') !== null;
-            const hasBuildingInfo = content.querySelector('#attack_spy_buildings_left, #attack_spy_buildings_right') !== null;
+            // Determine report type from the outcome header (like in-game)
+            // Look for <h3> tags which contain the battle result
+            const outcomeHeaders = content.querySelectorAll('h3');
+            let reportType = 'unknown';
             
-            console.log(`[DEBUG] Report type detection for ${reportId}:`);
-            console.log(`  - hasEspionageSection: ${!!hasEspionageSection}`);
-            console.log(`  - hasResourceInfo: ${hasResourceInfo}`);
-            console.log(`  - hasBuildingInfo: ${hasBuildingInfo}`);
-            
-            if (hasEspionageSection && (hasResourceInfo || hasBuildingInfo)) {
-                report.reportType = 'scout';
-                console.log(`  → Classified as: scout`);
-            } else if (text.includes('attacker') && text.includes('defender')) {
-                // It's a combat report
-                if (text.includes('attacker has won') || text.includes('attacker won')) {
-                    report.reportType = 'attack';
-                    console.log(`  → Classified as: attack`);
-                } else if (text.includes('defender has won') || text.includes('defender won')) {
-                    report.reportType = 'defense';
-                    console.log(`  → Classified as: defense`);
-                } else {
-                    report.reportType = 'combat';
-                    console.log(`  → Classified as: combat`);
+            outcomeHeaders.forEach(h3 => {
+                const headerText = h3.textContent.toLowerCase().trim();
+                console.log(`[DEBUG] Found h3 header: "${headerText}"`);
+                
+                if (headerText.includes('has won') || headerText.includes('won')) {
+                    if (headerText.includes('attacker')) {
+                        reportType = 'attack_won';
+                    } else if (headerText.includes('defender')) {
+                        reportType = 'defense_won';
+                    }
+                } else if (headerText.includes('defeated')) {
+                    reportType = 'defeated';
+                } else if (headerText.includes('support')) {
+                    reportType = 'support';
                 }
-            } else {
-                report.reportType = 'unknown';
-                console.log(`  → Classified as: unknown`);
+            });
+            
+            // Check if it's a scout report (has espionage section)
+            const hasEspionageSection = content.querySelector('#attack_spy_resources, #attack_spy_buildings_left, #attack_spy_away');
+            if (hasEspionageSection) {
+                // Scout with combat result
+                if (reportType.includes('won') || reportType === 'defeated') {
+                    reportType = 'scout_' + reportType;
+                } else {
+                    reportType = 'scout';
+                }
             }
+            
+            report.reportType = reportType;
+            console.log(`[DEBUG] Final report type: ${reportType}`);
 
             // Extract coordinates
             const villageLinks = content.querySelectorAll('a[href*="screen=info_village"]');
@@ -350,6 +356,12 @@ console.log('🎮 TW High Command v2.1 loaded!');
                         }
                     });
                 }
+            }
+            
+            // Extract relic information (if scouted)
+            const relicMatch = text.match(/relic.*?level\s*(\d+)/i) || text.match(/level\s*(\d+).*?relic/i);
+            if (relicMatch) {
+                report.relic = parseInt(relicMatch[1]);
             }
 
             // Extract troops (from combat and scout reports)
