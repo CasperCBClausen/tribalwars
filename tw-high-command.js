@@ -176,18 +176,30 @@ console.log('🎮 TW High Command v2.1 loaded!');
             
             // Look for "Battle time" row in table
             const tables = content.querySelectorAll('table.vis');
+            console.log(`[DEBUG] Found ${tables.length} tables in report ${reportId}`);
+            
             for (const table of tables) {
                 const rows = table.querySelectorAll('tr');
                 for (const row of rows) {
                     const cells = row.querySelectorAll('td');
                     if (cells.length === 2) {
                         const label = cells[0].textContent.trim().toLowerCase();
+                        const value = cells[1].textContent.trim();
+                        
+                        if (label.includes('battle') || label.includes('time')) {
+                            console.log(`[DEBUG] Found row: "${label}" = "${value}"`);
+                        }
+                        
                         if (label === 'battle time') {
                             const dateText = cells[1].textContent.trim();
+                            console.log(`[DEBUG] Battle time text: "${dateText}"`);
+                            
                             // Format: "Jan 28, 2026  00:47:45:749" or "Jan 28, 2026  00:47:45"
                             const dateMatch = dateText.match(/(\w+)\s+(\d+),\s+(\d+)\s+(\d+):(\d+):(\d+)/);
                             if (dateMatch) {
                                 const [, monthStr, day, year, hour, min, sec] = dateMatch;
+                                console.log(`[DEBUG] Matched: month=${monthStr}, day=${day}, year=${year}, time=${hour}:${min}:${sec}`);
+                                
                                 const months = {
                                     'jan': 0, 'feb': 1, 'mar': 2, 'apr': 3, 'may': 4, 'jun': 5,
                                     'jul': 6, 'aug': 7, 'sep': 8, 'oct': 9, 'nov': 10, 'dec': 11
@@ -195,8 +207,11 @@ console.log('🎮 TW High Command v2.1 loaded!');
                                 const month = months[monthStr.toLowerCase()];
                                 if (month !== undefined) {
                                     reportTimestamp = new Date(year, month, day, hour, min, sec).getTime();
+                                    console.log(`[DEBUG] Created timestamp: ${reportTimestamp} (${new Date(reportTimestamp).toISOString()})`);
                                     break;
                                 }
+                            } else {
+                                console.log(`[DEBUG] Date regex did not match`);
                             }
                         }
                     }
@@ -205,7 +220,7 @@ console.log('🎮 TW High Command v2.1 loaded!');
             }
             
             report.reportTimestamp = reportTimestamp;
-            console.log('Extracted timestamp:', reportTimestamp, 'from report', reportId);
+            console.log(`[DEBUG] Final reportTimestamp for ${reportId}: ${reportTimestamp}`);
 
             // Determine report type - be very precise about scout reports
             // Scout report MUST have espionage section with actual intelligence
@@ -213,19 +228,29 @@ console.log('🎮 TW High Command v2.1 loaded!');
             const hasResourceInfo = content.querySelector('#attack_spy_resources') !== null;
             const hasBuildingInfo = content.querySelector('#attack_spy_buildings_left, #attack_spy_buildings_right') !== null;
             
+            console.log(`[DEBUG] Report type detection for ${reportId}:`);
+            console.log(`  - hasEspionageSection: ${!!hasEspionageSection}`);
+            console.log(`  - hasResourceInfo: ${hasResourceInfo}`);
+            console.log(`  - hasBuildingInfo: ${hasBuildingInfo}`);
+            
             if (hasEspionageSection && (hasResourceInfo || hasBuildingInfo)) {
                 report.reportType = 'scout';
+                console.log(`  → Classified as: scout`);
             } else if (text.includes('attacker') && text.includes('defender')) {
                 // It's a combat report
                 if (text.includes('attacker has won') || text.includes('attacker won')) {
                     report.reportType = 'attack';
+                    console.log(`  → Classified as: attack`);
                 } else if (text.includes('defender has won') || text.includes('defender won')) {
                     report.reportType = 'defense';
+                    console.log(`  → Classified as: defense`);
                 } else {
                     report.reportType = 'combat';
+                    console.log(`  → Classified as: combat`);
                 }
             } else {
                 report.reportType = 'unknown';
+                console.log(`  → Classified as: unknown`);
             }
 
             // Extract coordinates
