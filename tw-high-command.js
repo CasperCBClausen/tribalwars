@@ -174,62 +174,52 @@ console.log('🎮 TW High Command v2.1 loaded!');
             // Extract report timestamp - battle time from the report
             let reportTimestamp = null;
             
-            // Format from HTML: " Jan 20, 2026 16:52:39"
-            const dateMatch1 = fullHTML.match(/"\s*(\w+)\s+(\d+),\s+(\d+)\s+(\d+):(\d+):(\d+)"/);
-            if (dateMatch1) {
-                const [, monthStr, day, year, hour, min, sec] = dateMatch1;
-                const months = {
-                    'jan': 0, 'feb': 1, 'mar': 2, 'apr': 3, 'may': 4, 'jun': 5,
-                    'jul': 6, 'aug': 7, 'sep': 8, 'oct': 9, 'nov': 10, 'dec': 11
-                };
-                const month = months[monthStr.toLowerCase()];
-                if (month !== undefined) {
-                    reportTimestamp = new Date(year, month, day, hour, min, sec).getTime();
-                }
-            }
-            
-            // Try alternative format: "Sent on 27. Jan 2026, 15:30:45"
-            if (!reportTimestamp) {
-                const dateMatch2 = text.match(/sent\s+on\s+(\d+)\.\s+(\w+)\s+(\d+)[,\s]+(\d+):(\d+):(\d+)/i);
-                if (dateMatch2) {
-                    const [, day, monthStr, year, hour, min, sec] = dateMatch2;
-                    const months = {
-                        'jan': 0, 'feb': 1, 'mar': 2, 'apr': 3, 'may': 4, 'jun': 5,
-                        'jul': 6, 'aug': 7, 'sep': 8, 'oct': 9, 'nov': 10, 'dec': 11
-                    };
-                    const month = months[monthStr.toLowerCase().substring(0, 3)];
-                    if (month !== undefined) {
-                        reportTimestamp = new Date(year, month, day, hour, min, sec).getTime();
+            // Look for "Battle time" row in table
+            const tables = content.querySelectorAll('table.vis');
+            for (const table of tables) {
+                const rows = table.querySelectorAll('tr');
+                for (const row of rows) {
+                    const cells = row.querySelectorAll('td');
+                    if (cells.length === 2) {
+                        const label = cells[0].textContent.trim().toLowerCase();
+                        if (label === 'battle time') {
+                            const dateText = cells[1].textContent.trim();
+                            // Format: "Jan 28, 2026  00:47:45:749" or "Jan 28, 2026  00:47:45"
+                            const dateMatch = dateText.match(/(\w+)\s+(\d+),\s+(\d+)\s+(\d+):(\d+):(\d+)/);
+                            if (dateMatch) {
+                                const [, monthStr, day, year, hour, min, sec] = dateMatch;
+                                const months = {
+                                    'jan': 0, 'feb': 1, 'mar': 2, 'apr': 3, 'may': 4, 'jun': 5,
+                                    'jul': 6, 'aug': 7, 'sep': 8, 'oct': 9, 'nov': 10, 'dec': 11
+                                };
+                                const month = months[monthStr.toLowerCase()];
+                                if (month !== undefined) {
+                                    reportTimestamp = new Date(year, month, day, hour, min, sec).getTime();
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
-            }
-            
-            // Try format: "on 27.01.2026 at 15:30:45"
-            if (!reportTimestamp) {
-                const dateMatch3 = text.match(/on\s+(\d+)\.(\d+)\.(\d+)\s+at\s+(\d+):(\d+):(\d+)/i);
-                if (dateMatch3) {
-                    const [, day, month, year, hour, min, sec] = dateMatch3;
-                    reportTimestamp = new Date(year, month - 1, day, hour, min, sec).getTime();
-                }
+                if (reportTimestamp) break;
             }
             
             report.reportTimestamp = reportTimestamp;
-            
             console.log('Extracted timestamp:', reportTimestamp, 'from report', reportId);
 
-            // Determine report type - be more precise
-            // Scout report = has espionage/scout text AND actually scouted something (resources or buildings visible)
-            const hasEspionageText = text.includes('espionage') || text.includes('scouted') || text.includes('scout report');
-            const hasResourceInfo = fullHTML.includes('wood') || fullHTML.includes('clay') || fullHTML.includes('iron');
-            const hasBuildingInfo = text.includes('headquarters') || text.includes('barracks') || text.includes('stable');
+            // Determine report type - be very precise about scout reports
+            // Scout report MUST have espionage section with actual intelligence
+            const hasEspionageSection = content.querySelector('#attack_spy_resources, #attack_spy_buildings_left, #attack_spy_away');
+            const hasResourceInfo = content.querySelector('#attack_spy_resources') !== null;
+            const hasBuildingInfo = content.querySelector('#attack_spy_buildings_left, #attack_spy_buildings_right') !== null;
             
-            if (hasEspionageText && (hasResourceInfo || hasBuildingInfo)) {
+            if (hasEspionageSection && (hasResourceInfo || hasBuildingInfo)) {
                 report.reportType = 'scout';
             } else if (text.includes('attacker') && text.includes('defender')) {
                 // It's a combat report
-                if (text.includes('attacker has won')) {
+                if (text.includes('attacker has won') || text.includes('attacker won')) {
                     report.reportType = 'attack';
-                } else if (text.includes('defender has won')) {
+                } else if (text.includes('defender has won') || text.includes('defender won')) {
                     report.reportType = 'defense';
                 } else {
                     report.reportType = 'combat';
