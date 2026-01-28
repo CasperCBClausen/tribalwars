@@ -343,25 +343,44 @@ console.log('🎮 TW High Command v2.1 loaded!');
             if (forwardedByMatch) report.forwardedBy = forwardedByMatch[1].trim();
             
             // Extract units away (from scout reports showing units outside village)
+            // These should be stored as defender losses since they represent troops not in village
             const unitsAwayTable = content.querySelector('#attack_spy_away table.vis');
             if (unitsAwayTable) {
                 const awayRows = Array.from(unitsAwayTable.querySelectorAll('tr'));
                 if (awayRows.length >= 2) {
                     const cells = Array.from(awayRows[1].querySelectorAll('td'));
                     const unitTypes = ['spear', 'sword', 'axe', 'archer', 'spy', 'light', 'marcher', 'heavy', 'ram', 'catapult', 'knight', 'snob'];
+                    
+                    // Store in defenderLosses since these troops are away (not available for defense)
                     cells.forEach((cell, idx) => {
                         const count = parseInt(cell.textContent.replace(/\D/g, '')) || 0;
                         if (count > 0 && idx < unitTypes.length) {
-                            report.defenderUnitsAway[unitTypes[idx]] = count;
+                            report.defenderLosses[unitTypes[idx]] = (report.defenderLosses[unitTypes[idx]] || 0) + count;
                         }
                     });
                 }
             }
             
             // Extract relic information (if scouted)
-            const relicMatch = text.match(/relic.*?level\s*(\d+)/i) || text.match(/level\s*(\d+).*?relic/i);
-            if (relicMatch) {
-                report.relic = parseInt(relicMatch[1]);
+            // Qualities: Shoddy, Basic, Enhanced, Superior, Renowned
+            // Types: Halberd, Longsword, Greataxe, Longbow, Shortspear, Shortbow, Banner, Bonfire, Morningstar, Dummy, Horseshoe, Wheel, Backpack, Chisel, Axe, Pickaxe, Telescope, Bell
+            const relicDiv = content.querySelector('[class*="relic-quality-"]');
+            if (relicDiv) {
+                // Get the text content which includes relic name
+                const relicText = relicDiv.textContent.trim();
+                // Clean up the text (remove extra spaces)
+                report.relic = relicText.replace(/\s+/g, ' ');
+                console.log(`[DEBUG] Found relic: ${report.relic}`);
+            } else {
+                // Fallback: try to find "Relic scouted:" in HTML
+                const relicMatch = fullHTML.match(/Relic scouted:.*?<div[^>]*>(.*?)<\/div>/is);
+                if (relicMatch) {
+                    const relicHTML = relicMatch[1];
+                    // Extract just the text, removing HTML tags
+                    const relicText = relicHTML.replace(/<[^>]*>/g, '').trim();
+                    report.relic = relicText.replace(/\s+/g, ' ');
+                    console.log(`[DEBUG] Found relic (fallback): ${report.relic}`);
+                }
             }
 
             // Extract troops (from combat and scout reports)
