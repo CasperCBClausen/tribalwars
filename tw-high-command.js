@@ -257,35 +257,45 @@ console.log('🎮 TW High Command v2.1 loaded!');
                 }
             }
 
-            // Extract building levels (from scout reports)
-            const buildingRows = content.querySelectorAll('tr');
-            buildingRows.forEach(row => {
-                const cells = row.querySelectorAll('td');
-                if (cells.length >= 2) {
-                    const buildingName = cells[0].textContent.trim().toLowerCase();
-                    const levelText = cells[1].textContent.trim();
-                    const levelMatch = levelText.match(/(\d+)/);
-                    
-                    if (levelMatch && (
-                        buildingName.includes('headquarters') ||
-                        buildingName.includes('barracks') ||
-                        buildingName.includes('stable') ||
-                        buildingName.includes('workshop') ||
-                        buildingName.includes('academy') ||
-                        buildingName.includes('smithy') ||
-                        buildingName.includes('rally point') ||
-                        buildingName.includes('market') ||
-                        buildingName.includes('timber camp') ||
-                        buildingName.includes('clay pit') ||
-                        buildingName.includes('iron mine') ||
-                        buildingName.includes('farm') ||
-                        buildingName.includes('warehouse') ||
-                        buildingName.includes('hiding place') ||
-                        buildingName.includes('wall')
-                    )) {
-                        report.buildingLevels[buildingName.replace(/\s+/g, '_')] = parseInt(levelMatch[1]);
+            // Extract building levels (from scout reports) - look in specific building tables
+            const buildingTables = content.querySelectorAll('table#attack_spy_buildings_left, table#attack_spy_buildings_right');
+            buildingTables.forEach(table => {
+                const rows = table.querySelectorAll('tr');
+                rows.forEach(row => {
+                    const cells = row.querySelectorAll('td');
+                    if (cells.length >= 2) {
+                        const buildingText = cells[0].textContent.trim().toLowerCase();
+                        const levelText = cells[1].textContent.trim();
+                        const levelMatch = levelText.match(/^\d+$/); // Only pure numbers
+                        
+                        if (levelMatch && (
+                            buildingText.includes('headquarters') ||
+                            buildingText.includes('barracks') ||
+                            buildingText.includes('stable') ||
+                            buildingText.includes('workshop') ||
+                            buildingText.includes('academy') ||
+                            buildingText.includes('smithy') ||
+                            buildingText.includes('rally') ||
+                            buildingText.includes('statue') ||
+                            buildingText.includes('market') ||
+                            buildingText.includes('timber') ||
+                            buildingText.includes('clay') ||
+                            buildingText.includes('iron') ||
+                            buildingText.includes('farm') ||
+                            buildingText.includes('warehouse') ||
+                            buildingText.includes('storage') ||
+                            buildingText.includes('hiding') ||
+                            buildingText.includes('wall')
+                        )) {
+                            // Clean up building name
+                            const cleanName = buildingText
+                                .replace(/\s+/g, '_')
+                                .replace(/[^a-z_]/g, '')
+                                .substring(0, 30); // Limit length
+                            report.buildingLevels[cleanName] = parseInt(levelText);
+                        }
                     }
-                }
+                });
             });
 
             // Extract resources (from scout reports)
