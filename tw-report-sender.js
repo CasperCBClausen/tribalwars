@@ -1,5 +1,5 @@
 /*
- * Script Name: TW High Command
+ * Script Name: TW Report Sender
  * Author: NeilB
  * Version: 2.1.0
  * Description: Batch process combat reports from overview page (Rule Compliant)
@@ -13,17 +13,17 @@
  * - Not obfuscated
  */
 
-console.log('🎮 TW High Command v2.1 loaded!');
+console.log('🎮 TW Report Sender v2.1 loaded!');
 
 (function() {
     'use strict';
 
     const CONFIG = {
-        scriptName: 'TW High Command',
+        scriptName: 'TW Report Sender',
         version: '2.1.0',
         author: 'NeilB',
         apiEndpoint: '',
-        localStorageKey: 'twHighCommand_config',
+        localStorageKey: 'twReportSender_config',
         delayBetweenReports: 200, // 5 reports/second = 200ms delay
         processing: false
     };
@@ -657,7 +657,7 @@ console.log('🎮 TW High Command v2.1 loaded!');
         panel.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
                 <div>
-                    <strong style="color:#7d510f;font-size:16px;">⚔️ TW High Command</strong>
+                    <strong style="color:#7d510f;font-size:16px;">⚔️ TW Report Sender</strong>
                     <span style="color:#666;margin-left:10px;font-size:12px;">by ${CONFIG.author} | Found ${reportCount} village reports</span>
                 </div>
                 <div>
@@ -717,14 +717,14 @@ console.log('🎮 TW High Command v2.1 loaded!');
         loadConfig();
 
         if (!isReportsOverviewPage()) {
-            if (confirm('⚠️ TW High Command\n\nThis script must be run from the Reports Overview page.\n\nClick OK to go there now.')) {
+            if (confirm('⚠️ TW Report Sender\n\nThis script must be run from the Reports Overview page.\n\nClick OK to go there now.')) {
                 window.location.href = 'game.php?screen=report';
             }
             return;
         }
 
         if (!CONFIG.apiEndpoint) {
-            const endpoint = prompt('🎮 TW High Command - Setup\n\nEnter your API endpoint URL:', 'http://localhost:3000');
+            const endpoint = prompt('🎮 TW Report Sender - Setup\n\nEnter your API endpoint URL:', 'http://localhost:3000');
             if (endpoint) {
                 CONFIG.apiEndpoint = endpoint.trim();
                 saveConfig();
