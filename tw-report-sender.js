@@ -4,6 +4,16 @@
  * Version: 2.1.0
  * Description: Batch process combat reports from overview page (Rule Compliant)
  * 
+ * API ENDPOINT:
+ * Configure the full endpoint URL where reports should be sent.
+ * 
+ * Examples:
+ * - http://localhost:3000/api/report
+ * - https://your-domain.com/tw/reports
+ * - http://192.168.1.100:8080/receive
+ * 
+ * The script will POST JSON data to whatever URL you specify.
+ * 
  * COMPLIANCE NOTES:
  * - This script does NOT send player names, player IDs, tribe names, or tribe IDs
  * - Only sends coordinates and battle statistics (non-identifying data)
@@ -177,7 +187,6 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
             
             // Look for "Battle time" row in table
             const tables = content.querySelectorAll('table.vis');
-            console.log(`[DEBUG] Found ${tables.length} tables in report ${reportId}`);
             
             for (const table of tables) {
                 const rows = table.querySelectorAll('tr');
@@ -185,21 +194,14 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
                     const cells = row.querySelectorAll('td');
                     if (cells.length === 2) {
                         const label = cells[0].textContent.trim().toLowerCase();
-                        const value = cells[1].textContent.trim();
-                        
-                        if (label.includes('battle') || label.includes('time')) {
-                            console.log(`[DEBUG] Found row: "${label}" = "${value}"`);
-                        }
                         
                         if (label === 'battle time') {
                             const dateText = cells[1].textContent.trim();
-                            console.log(`[DEBUG] Battle time text: "${dateText}"`);
                             
                             // Format: "Jan 28, 2026  00:47:45:749" or "Jan 28, 2026  00:47:45"
                             const dateMatch = dateText.match(/(\w+)\s+(\d+),\s+(\d+)\s+(\d+):(\d+):(\d+)/);
                             if (dateMatch) {
                                 const [, monthStr, day, year, hour, min, sec] = dateMatch;
-                                console.log(`[DEBUG] Matched: month=${monthStr}, day=${day}, year=${year}, time=${hour}:${min}:${sec}`);
                                 
                                 const months = {
                                     'jan': 0, 'feb': 1, 'mar': 2, 'apr': 3, 'may': 4, 'jun': 5,
@@ -208,11 +210,8 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
                                 const month = months[monthStr.toLowerCase()];
                                 if (month !== undefined) {
                                     reportTimestamp = new Date(year, month, day, hour, min, sec).getTime();
-                                    console.log(`[DEBUG] Created timestamp: ${reportTimestamp} (${new Date(reportTimestamp).toISOString()})`);
                                     break;
                                 }
-                            } else {
-                                console.log(`[DEBUG] Date regex did not match`);
                             }
                         }
                     }
@@ -221,7 +220,6 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
             }
             
             report.reportTimestamp = reportTimestamp;
-            console.log(`[DEBUG] Final reportTimestamp for ${reportId}: ${reportTimestamp}`);
 
             // Determine report type from the outcome header (like in-game)
             // Look for <h3> tags which contain the battle result
@@ -230,7 +228,6 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
             
             outcomeHeaders.forEach(h3 => {
                 const headerText = h3.textContent.toLowerCase().trim();
-                console.log(`[DEBUG] Found h3 header: "${headerText}"`);
                 
                 if (headerText.includes('has won') || headerText.includes('won')) {
                     if (headerText.includes('attacker')) {
@@ -257,7 +254,6 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
             }
             
             report.reportType = reportType;
-            console.log(`[DEBUG] Final report type: ${reportType}`);
 
             // Extract coordinates
             const villageLinks = content.querySelectorAll('a[href*="screen=info_village"]');
@@ -370,7 +366,6 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
                 const relicText = relicDiv.textContent.trim();
                 // Clean up the text (remove extra spaces)
                 report.relic = relicText.replace(/\s+/g, ' ');
-                console.log(`[DEBUG] Found relic: ${report.relic}`);
             } else {
                 // Fallback: try to find "Relic scouted:" in HTML
                 const relicMatch = fullHTML.match(/Relic scouted:.*?<div[^>]*>(.*?)<\/div>/is);
@@ -379,7 +374,6 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
                     // Extract just the text, removing HTML tags
                     const relicText = relicHTML.replace(/<[^>]*>/g, '').trim();
                     report.relic = relicText.replace(/\s+/g, ' ');
-                    console.log(`[DEBUG] Found relic (fallback): ${report.relic}`);
                 }
             }
 
@@ -478,12 +472,6 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
                     });
                 }
             });
-            
-            console.log('Extracted troops:', {
-                attacker: report.attackerTroops,
-                defender: report.defenderTroops,
-                reportId: reportId
-            });
 
             // Extract loot (from attack reports)
             const haulMatch = text.match(/haul:\s*(\d+)\/(\d+)/i);
@@ -516,7 +504,8 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
     }
 
     async function sendReportData(reportData) {
-        const response = await fetch(`${CONFIG.apiEndpoint}/api/report`, {
+        // POST to the configured endpoint
+        const response = await fetch(CONFIG.apiEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(reportData)
@@ -612,10 +601,16 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
         dialog.style.cssText = 'background:#f4e4bc;border:2px solid #7d510f;padding:20px;border-radius:8px;max-width:500px;width:90%;';
 
         dialog.innerHTML = `
-            <h2 style="margin-top:0;color:#7d510f;">⚔️ Settings</h2>
+            <h2 style="margin-top:0;color:#7d510f;">⚙️ Settings</h2>
             <p style="color:#333;"><strong>Note:</strong> Only coordinates and battle stats are sent to your backend.</p>
-            <label style="display:block;margin:15px 0 5px;font-weight:bold;color:#7d510f;">API Endpoint:</label>
-            <input type="text" id="apiInput" value="${CONFIG.apiEndpoint}" placeholder="http://localhost:3000" style="width:100%;padding:8px;border:1px solid #7d510f;border-radius:4px;">
+            <label style="display:block;margin:15px 0 5px;font-weight:bold;color:#7d510f;">API Endpoint (Full URL):</label>
+            <input type="text" id="apiInput" value="${CONFIG.apiEndpoint}" placeholder="http://localhost:3000/api/report" style="width:100%;padding:8px;border:1px solid #7d510f;border-radius:4px;">
+            <p style="color:#666;font-size:12px;margin:5px 0 0 0;">
+                Enter the complete URL where reports should be sent.<br>
+                Examples:<br>
+                • <code style="background:#e0d4b8;padding:2px 4px;border-radius:2px;">http://localhost:3000/api/report</code><br>
+                • <code style="background:#e0d4b8;padding:2px 4px;border-radius:2px;">https://your-domain.com/tw/reports</code>
+            </p>
             <div style="margin-top:20px;text-align:right;">
                 <button id="cancelBtn" style="margin-right:10px;padding:8px 16px;background:#ccc;border:none;border-radius:4px;cursor:pointer;">Cancel</button>
                 <button id="saveBtn" style="padding:8px 16px;background:#7d510f;color:white;border:none;border-radius:4px;cursor:pointer;">Save</button>
@@ -724,7 +719,7 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
         }
 
         if (!CONFIG.apiEndpoint) {
-            const endpoint = prompt('🎮 TW Report Sender - Setup\n\nEnter your API endpoint URL:', 'http://localhost:3000');
+            const endpoint = prompt('🎮 TW Report Sender - Setup\n\nEnter your full API endpoint URL:\n(e.g., http://localhost:3000/api/report)', 'http://localhost:3000/api/report');
             if (endpoint) {
                 CONFIG.apiEndpoint = endpoint.trim();
                 saveConfig();
