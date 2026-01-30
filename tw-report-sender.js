@@ -173,7 +173,18 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
                 maxHaul: 0,
                 loyalty: null,
                 loyaltyChange: null,
-                outcome: null
+                outcome: null,
+                
+                // Building/Wall damage
+                wallBefore: null,
+                wallAfter: null,
+                buildingDamaged: null,
+                buildingLevelBefore: null,
+                buildingLevelAfter: null,
+                
+                // Paladin XP
+                paladinName: null,
+                paladinXP: null
             };
 
             const content = doc.getElementById('content_value');
@@ -378,7 +389,7 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
             }
 
             // Extract troops (from combat and scout reports)
-            const unitTypes = ['spear', 'sword', 'axe', 'archer', 'spy', 'light', 'marcher', 'heavy', 'ram', 'catapult', 'knight', 'snob'];
+            const unitTypes = ['spear', 'sword', 'axe', 'archer', 'spy', 'light', 'marcher', 'heavy', 'ram', 'catapult', 'knight', 'snob', 'militia'];
             
             // Find troop tables - they have specific structure with unit icons
             const troopTables = content.querySelectorAll('table');
@@ -386,56 +397,62 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
                 const tableHTML = table.innerHTML.toLowerCase();
                 
                 // Skip if no unit images
-                if (!unitTypes.some(unit => tableHTML.includes(unit))) return;
+                if (!tableHTML.includes('unit_')) return;
                 
-                // Determine if this is attacker or defender table by checking the table's context
-                const tableText = table.textContent.toLowerCase();
-                
-                // Check the table header or preceding text for attacker/defender label
+                // Determine if this is attacker or defender table
                 let isAttackerTable = false;
                 let isDefenderTable = false;
                 
-                // Look for table headers with attack/defense labels
-                const headers = table.querySelectorAll('th');
-                headers.forEach(th => {
-                    const text = th.textContent.toLowerCase();
-                    if (text.includes('attacker')) isAttackerTable = true;
-                    if (text.includes('defender')) isDefenderTable = true;
-                });
+                // Check table ID first
+                const tableId = table.id || '';
+                if (tableId.includes('att')) isAttackerTable = true;
+                if (tableId.includes('def')) isDefenderTable = true;
                 
-                // If still not clear, check rows
+                // Check headers
                 if (!isAttackerTable && !isDefenderTable) {
-                    const firstRows = Array.from(table.querySelectorAll('tr')).slice(0, 3);
-                    firstRows.forEach(row => {
-                        const text = row.textContent.toLowerCase();
+                    const headers = table.querySelectorAll('th');
+                    headers.forEach(th => {
+                        const text = th.textContent.toLowerCase();
                         if (text.includes('attacker')) isAttackerTable = true;
                         if (text.includes('defender')) isDefenderTable = true;
                     });
                 }
                 
-                // For scout reports with no clear label, check if we already have attacker data
-                const defaultToDefender = !isAttackerTable && !isDefenderTable;
+                // Skip if we can't determine which table this is
+                if (!isAttackerTable && !isDefenderTable) return;
                 
                 const rows = Array.from(table.querySelectorAll('tr'));
                 
-                // Find header row with unit images
+                // Find header row with unit images and build column mapping
                 let headerRowIdx = -1;
                 let unitColumns = []; // [{idx, unitType}]
                 
                 rows.forEach((row, rowIdx) => {
                     const cells = Array.from(row.querySelectorAll('th, td'));
-                    cells.forEach((cellIdx, cellPos) => {
-                        const img = cells[cellPos].querySelector('img');
-                        if (img) {
-                            const unitType = unitTypes.find(u => img.src.includes(`unit_${u}`) || img.src.includes(`/${u}.png`));
-                            if (unitType) {
-                                if (headerRowIdx === -1) headerRowIdx = rowIdx;
-                                if (headerRowIdx === rowIdx) {
+                    
+                    // Check if this row has unit icons
+                    let hasUnitIcons = false;
+                    cells.forEach(cell => {
+                        const link = cell.querySelector('a.unit_link');
+                        if (link && link.hasAttribute('data-unit')) {
+                            hasUnitIcons = true;
+                        }
+                    });
+                    
+                    if (hasUnitIcons && headerRowIdx === -1) {
+                        headerRowIdx = rowIdx;
+                        
+                        // Build column mapping using data-unit attribute
+                        cells.forEach((cell, cellPos) => {
+                            const link = cell.querySelector('a.unit_link');
+                            if (link) {
+                                const unitType = link.getAttribute('data-unit');
+                                if (unitType && unitTypes.includes(unitType)) {
                                     unitColumns.push({idx: cellPos, unitType});
                                 }
                             }
-                        }
-                    });
+                        });
+                    }
                 });
                 
                 if (headerRowIdx === -1 || unitColumns.length === 0) return;
@@ -490,6 +507,28 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
             if (loyaltyMatch) {
                 report.loyalty = parseInt(loyaltyMatch[2]);
                 report.loyaltyChange = parseInt(loyaltyMatch[1]) - parseInt(loyaltyMatch[2]);
+            }
+
+            // Extract wall damage
+            const wallMatch = fullHTML.match(/Wall has been damaged and downgraded from level\s+<b>(\d+)<\/b>\s+to level\s+<b>(\d+)<\/b>/i);
+            if (wallMatch) {
+                report.wallBefore = parseInt(wallMatch[1]);
+                report.wallAfter = parseInt(wallMatch[2]);
+            }
+            
+            // Extract building damage (not wall)
+            const buildingMatch = fullHTML.match(/The\s+([\w\s]+)\s+has been damaged and downgraded from level\s+<b>(\d+)<\/b>\s+to level\s+<b>(\d+)<\/b>/i);
+            if (buildingMatch && !buildingMatch[1].toLowerCase().includes('wall')) {
+                report.buildingDamaged = buildingMatch[1].trim();
+                report.buildingLevelBefore = parseInt(buildingMatch[2]);
+                report.buildingLevelAfter = parseInt(buildingMatch[3]);
+            }
+            
+            // Extract paladin XP - look for the paladin table
+            const paladinXPMatch = fullHTML.match(/<img[^>]*unit_knight[^>]*[^>]*>\s*([^<]+)<\/th>\s*<td[^>]*>\s*<img[^>]*>\s*([\d,.]+)\s*XP/is);
+            if (paladinXPMatch) {
+                report.paladinName = paladinXPMatch[1].trim();
+                report.paladinXP = parseInt(paladinXPMatch[2].replace(/[,.\s]/g, ''));
             }
 
             // Determine outcome
