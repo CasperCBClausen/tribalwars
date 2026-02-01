@@ -156,12 +156,12 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
                 morale: null,
                 luck: null,
                 
-                // Military info
-                attackerTroops: {},
-                defenderTroops: {},
-                attackerLosses: {},
-                defenderLosses: {},
-                defenderUnitsAway: {}, // Units outside village during scout
+                // Military info - Initialize with all units at 0
+                attackerTroops: {spear:0, sword:0, axe:0, archer:0, spy:0, light:0, marcher:0, heavy:0, ram:0, catapult:0, knight:0, snob:0},
+                defenderTroops: {spear:0, sword:0, axe:0, archer:0, spy:0, light:0, marcher:0, heavy:0, ram:0, catapult:0, knight:0, snob:0, militia:0},
+                attackerLosses: {spear:0, sword:0, axe:0, archer:0, spy:0, light:0, marcher:0, heavy:0, ram:0, catapult:0, knight:0, snob:0},
+                defenderLosses: {spear:0, sword:0, axe:0, archer:0, spy:0, light:0, marcher:0, heavy:0, ram:0, catapult:0, knight:0, snob:0, militia:0},
+                defenderUnitsAway: {spear:0, sword:0, axe:0, archer:0, spy:0, light:0, marcher:0, heavy:0, ram:0, catapult:0, knight:0, snob:0}, // Units outside village during scout
                 
                 // Scout/spy info
                 buildingLevels: {}, // headquarters, barracks, stable, etc.
