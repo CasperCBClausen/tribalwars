@@ -428,10 +428,25 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
                 
                 console.log('[TROOP EXTRACT] After header check - isAttacker:', isAttackerTable, 'isDefender:', isDefenderTable);
                 
+                // If table is marked as BOTH attacker and defender, it's ambiguous - only use row-level detection
+                if (isAttackerTable && isDefenderTable) {
+                    console.log('[TROOP EXTRACT] Table marked as BOTH - will use row-level detection only');
+                    isAttackerTable = false;
+                    isDefenderTable = false;
+                }
+                
                 // Skip if we can't determine which table this is
                 if (!isAttackerTable && !isDefenderTable) {
-                    console.log('[TROOP EXTRACT] Skipping table - cannot determine type');
-                    return;
+                    // Check if we can use row-level detection
+                    const hasRowLabels = rows.some(row => {
+                        const text = row.textContent.toLowerCase();
+                        return text.includes('attacker') || text.includes('defender');
+                    });
+                    
+                    if (!hasRowLabels) {
+                        console.log('[TROOP EXTRACT] Skipping table - cannot determine type');
+                        return;
+                    }
                 }
                 
                 const rows = Array.from(table.querySelectorAll('tr'));
