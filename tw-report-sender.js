@@ -428,6 +428,9 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
                 
                 console.log('[TROOP EXTRACT] After header check - isAttacker:', isAttackerTable, 'isDefender:', isDefenderTable);
                 
+                const rows = Array.from(table.querySelectorAll('tr'));
+                console.log('[TROOP EXTRACT] Table has', rows.length, 'rows');
+                
                 // If table is marked as BOTH attacker and defender, it's ambiguous - only use row-level detection
                 if (isAttackerTable && isDefenderTable) {
                     console.log('[TROOP EXTRACT] Table marked as BOTH - will use row-level detection only');
@@ -448,9 +451,6 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
                         return;
                     }
                 }
-                
-                const rows = Array.from(table.querySelectorAll('tr'));
-                console.log('[TROOP EXTRACT] Table has', rows.length, 'rows');
                 
                 // Find header row with unit images and build column mapping
                 let headerRowIdx = -1;
