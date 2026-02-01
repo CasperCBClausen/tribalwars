@@ -391,13 +391,19 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
             // Extract troops (from combat and scout reports)
             const unitTypes = ['spear', 'sword', 'axe', 'archer', 'spy', 'light', 'marcher', 'heavy', 'ram', 'catapult', 'knight', 'snob', 'militia'];
             
+            console.log('[TROOP EXTRACT] Starting troop extraction for report', reportId);
+            
             // Find troop tables - they have specific structure with unit icons
             const troopTables = content.querySelectorAll('table');
-            troopTables.forEach(table => {
+            console.log('[TROOP EXTRACT] Found', troopTables.length, 'tables');
+            
+            troopTables.forEach((table, tableIdx) => {
                 const tableHTML = table.innerHTML.toLowerCase();
                 
                 // Skip if no unit images
                 if (!tableHTML.includes('unit_')) return;
+                
+                console.log('[TROOP EXTRACT] Table', tableIdx, 'has unit images');
                 
                 // Determine if this is attacker or defender table
                 let isAttackerTable = false;
@@ -407,6 +413,8 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
                 const tableId = table.id || '';
                 if (tableId.includes('att')) isAttackerTable = true;
                 if (tableId.includes('def')) isDefenderTable = true;
+                
+                console.log('[TROOP EXTRACT] Table ID:', tableId, '- isAttacker:', isAttackerTable, 'isDefender:', isDefenderTable);
                 
                 // Check headers
                 if (!isAttackerTable && !isDefenderTable) {
@@ -418,10 +426,16 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
                     });
                 }
                 
+                console.log('[TROOP EXTRACT] After header check - isAttacker:', isAttackerTable, 'isDefender:', isDefenderTable);
+                
                 // Skip if we can't determine which table this is
-                if (!isAttackerTable && !isDefenderTable) return;
+                if (!isAttackerTable && !isDefenderTable) {
+                    console.log('[TROOP EXTRACT] Skipping table - cannot determine type');
+                    return;
+                }
                 
                 const rows = Array.from(table.querySelectorAll('tr'));
+                console.log('[TROOP EXTRACT] Table has', rows.length, 'rows');
                 
                 // Find header row with unit images and build column mapping
                 let headerRowIdx = -1;
@@ -452,10 +466,16 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
                                 }
                             }
                         });
+                        
+                        console.log('[TROOP EXTRACT] Found header row at index', rowIdx, 'with', unitColumns.length, 'units');
+                        console.log('[TROOP EXTRACT] Unit columns:', unitColumns.map(u => `${u.unitType}@${u.idx}`).join(', '));
                     }
                 });
                 
-                if (headerRowIdx === -1 || unitColumns.length === 0) return;
+                if (headerRowIdx === -1 || unitColumns.length === 0) {
+                    console.log('[TROOP EXTRACT] No unit columns found in table');
+                    return;
+                }
                 
                 // Parse data rows after header
                 for (let i = headerRowIdx + 1; i < rows.length && i < headerRowIdx + 4; i++) {
@@ -469,38 +489,70 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
                     
                     if (!isQuantity && !isLosses) continue;
                     
+                    console.log('[TROOP EXTRACT] Row', i, '- isQuantity:', isQuantity, 'isLosses:', isLosses);
+                    
                     // Determine if this specific row is for attacker or defender
                     const rowIsAttacker = rowText.includes('attacker');
                     const rowIsDefender = rowText.includes('defender');
                     
                     unitColumns.forEach(({idx, unitType}) => {
                         if (dataCells[idx]) {
-                            const value = parseInt(dataCells[idx].textContent.replace(/\D/g, '')) || 0;
+                            const cellText = dataCells[idx].textContent.trim();
+                            const value = parseInt(cellText.replace(/\D/g, '')) || 0;
+                            
+                            console.log(`[TROOP EXTRACT] Cell[${idx}] ${unitType}: "${cellText}" -> ${value}`);
                             
                             // Decision logic for which side this data belongs to
                             // Priority: table ID > row text
                             if (isAttackerTable) {
                                 // Table is marked as attacker table
-                                if (isQuantity) report.attackerTroops[unitType] = value;
-                                if (isLosses) report.attackerLosses[unitType] = value;
+                                if (isQuantity) {
+                                    report.attackerTroops[unitType] = value;
+                                    console.log(`[TROOP EXTRACT] Set attackerTroops.${unitType} = ${value}`);
+                                }
+                                if (isLosses) {
+                                    report.attackerLosses[unitType] = value;
+                                    console.log(`[TROOP EXTRACT] Set attackerLosses.${unitType} = ${value}`);
+                                }
                             } else if (isDefenderTable) {
                                 // Table is marked as defender table
-                                if (isQuantity) report.defenderTroops[unitType] = value;
-                                if (isLosses) report.defenderLosses[unitType] = value;
+                                if (isQuantity) {
+                                    report.defenderTroops[unitType] = value;
+                                    console.log(`[TROOP EXTRACT] Set defenderTroops.${unitType} = ${value}`);
+                                }
+                                if (isLosses) {
+                                    report.defenderLosses[unitType] = value;
+                                    console.log(`[TROOP EXTRACT] Set defenderLosses.${unitType} = ${value}`);
+                                }
                             } else {
                                 // Table not clearly marked - use row text
                                 if (rowIsAttacker) {
-                                    if (isQuantity) report.attackerTroops[unitType] = value;
-                                    if (isLosses) report.attackerLosses[unitType] = value;
+                                    if (isQuantity) {
+                                        report.attackerTroops[unitType] = value;
+                                        console.log(`[TROOP EXTRACT] Set attackerTroops.${unitType} = ${value} (from row)`);
+                                    }
+                                    if (isLosses) {
+                                        report.attackerLosses[unitType] = value;
+                                        console.log(`[TROOP EXTRACT] Set attackerLosses.${unitType} = ${value} (from row)`);
+                                    }
                                 } else if (rowIsDefender) {
-                                    if (isQuantity) report.defenderTroops[unitType] = value;
-                                    if (isLosses) report.defenderLosses[unitType] = value;
+                                    if (isQuantity) {
+                                        report.defenderTroops[unitType] = value;
+                                        console.log(`[TROOP EXTRACT] Set defenderTroops.${unitType} = ${value} (from row)`);
+                                    }
+                                    if (isLosses) {
+                                        report.defenderLosses[unitType] = value;
+                                        console.log(`[TROOP EXTRACT] Set defenderLosses.${unitType} = ${value} (from row)`);
+                                    }
                                 }
                             }
                         }
                     });
                 }
             });
+            
+            console.log('[TROOP EXTRACT] Final attackerTroops:', report.attackerTroops);
+            console.log('[TROOP EXTRACT] Final defenderTroops:', report.defenderTroops);
 
             // Extract loot (from attack reports)
             const haulMatch = text.match(/haul:\s*(\d+)\/(\d+)/i);
