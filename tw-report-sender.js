@@ -477,13 +477,25 @@ console.log('🎮 TW Report Sender v2.1 loaded!');
                         if (dataCells[idx]) {
                             const value = parseInt(dataCells[idx].textContent.replace(/\D/g, '')) || 0;
                             
-                            // Decision logic: table label > row label > default
-                            if (isAttackerTable || (!isDefenderTable && !defaultToDefender && rowIsAttacker)) {
+                            // Decision logic for which side this data belongs to
+                            // Priority: table ID > row text
+                            if (isAttackerTable) {
+                                // Table is marked as attacker table
                                 if (isQuantity) report.attackerTroops[unitType] = value;
                                 if (isLosses) report.attackerLosses[unitType] = value;
-                            } else if (isDefenderTable || defaultToDefender || rowIsDefender) {
+                            } else if (isDefenderTable) {
+                                // Table is marked as defender table
                                 if (isQuantity) report.defenderTroops[unitType] = value;
                                 if (isLosses) report.defenderLosses[unitType] = value;
+                            } else {
+                                // Table not clearly marked - use row text
+                                if (rowIsAttacker) {
+                                    if (isQuantity) report.attackerTroops[unitType] = value;
+                                    if (isLosses) report.attackerLosses[unitType] = value;
+                                } else if (rowIsDefender) {
+                                    if (isQuantity) report.defenderTroops[unitType] = value;
+                                    if (isLosses) report.defenderLosses[unitType] = value;
+                                }
                             }
                         }
                     });
