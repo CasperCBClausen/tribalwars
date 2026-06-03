@@ -1523,14 +1523,8 @@ showMessage('No valid attacks in this group');
 return;
 }
 showMessage('Opening ' + urls.length + ' tabs for group...');
-var delayTab = 200;
 for(var j=0;j<urls.length;j++){
-(function(url, idx){
-window.setTimeout(function(){
-window.open(url, '_blank');
-console.log('Opened attack ' + (idx + 1) + ' at ' + new Date().getTime());
-}, delayTab * idx);
-})(urls[j], j);
+window.open(urls[j], '_blank');
 }
 }
 
@@ -1570,14 +1564,8 @@ return;
 }
 
 showMessage('Opening ' + preparedUrls.length + ' tabs...');
-var delayTab = 200;
 for(var j=0;j<preparedUrls.length;j++){
-(function(url, idx){
-window.setTimeout(function(){
-window.open(url, '_blank');
-console.log('Opened tab ' + (idx + 1) + ' at ' + new Date().getTime());
-}, delayTab * idx);
-})(preparedUrls[j], j);
+window.open(preparedUrls[j], '_blank');
 }
 };
 
