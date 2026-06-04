@@ -896,7 +896,7 @@ window.__tw_helper_loaded = true;
       '1. Optionally select or create a unit template to pre-fill troop counts.<br>' +
       '2. Enter FROM and TO coordinates (one pair per line), or paste an attack plan.<br>' +
       '3. Click <i>Open Tabs</i> or a wave button to open all rally points at once.<br><br>' +
-      'Village data is fetched automatically from the game server and refreshed every hour.<br><br>' +
+      'Village data is fetched from the game server each time the script loads, if no data exists or the cached data is more than an hour old.<br><br>' +
       '<b>Premium requirements</b><br>' +
       'No Premium is required for the core functionality. The following features require <b>Account Manager</b>:<br>' +
       '— Unit templates (reads available units from the Combined Village Overview)<br>' +
