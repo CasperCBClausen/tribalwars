@@ -532,12 +532,12 @@ window.__tw_helper_loaded = true;
   const templatesSectionHeader = el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;' });
   const templatesSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;flex:1;' });
   templatesSectionTitle.textContent = 'Unit Templates';
-  const templatesCollapseBtn = el('button', { innerText: '−', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
+  const templatesCollapseBtn = el('button', { innerText: '+', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
   const templatesHelpBtn     = el('button', { innerText: '?', type: 'button', title: 'Help', style: 'cursor:pointer;padding:2px 7px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:3px;font-size:13px;font-weight:bold;line-height:1;margin-left:4px;' });
   templatesSectionHeader.append(templatesSectionTitle, templatesCollapseBtn, templatesHelpBtn);
   templatesSection.appendChild(templatesSectionHeader);
 
-  const templatesContent = el('div', { style: 'display:block;' });
+  const templatesContent = el('div', { style: 'display:none;' });
   templatesSection.appendChild(templatesContent);
 
   const templateControls = el('div', { style: 'display:flex;gap:8px;margin-bottom:8px;align-items:center;justify-content:center;flex-wrap:wrap;' });
@@ -588,7 +588,7 @@ window.__tw_helper_loaded = true;
   const rallySectionHeader = el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;' });
   const rallySectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;flex:1;' });
   rallySectionTitle.textContent = 'Rally Point Opener';
-  const rallyCollapseBtn = el('button', { innerText: '−', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
+  const rallyCollapseBtn = el('button', { innerText: '+', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
   const rallyHelpBtn     = el('button', { innerText: '?', type: 'button', title: 'Help', style: 'cursor:pointer;padding:2px 7px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:3px;font-size:13px;font-weight:bold;line-height:1;margin-left:4px;' });
 
   const useGroupWrapper  = el('label', { style: 'position:absolute;top:8px;left:8px;display:flex;align-items:center;gap:6px;color:#bbb;font-size:11px;cursor:pointer;' });
@@ -600,7 +600,7 @@ window.__tw_helper_loaded = true;
   rallySectionHeader.append(rallySectionTitle, rallyCollapseBtn, rallyHelpBtn, useGroupWrapper, btnTestData);
   rallySection.appendChild(rallySectionHeader);
 
-  const rallyContent    = el('div', { style: 'display:block;' });
+  const rallyContent    = el('div', { style: 'display:none;' });
   const columnsWrapper  = el('div', { style: 'display:flex;gap:12px;margin-bottom:12px;' });
   rallyContent.appendChild(columnsWrapper);
 
@@ -655,12 +655,12 @@ window.__tw_helper_loaded = true;
   const attackPlanHeader       = el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;' });
   const attackPlanTitle        = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;flex:1;' });
   attackPlanTitle.textContent  = 'Attack Plans';
-  const attackPlanCollapseBtn  = el('button', { innerText: '−', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
+  const attackPlanCollapseBtn  = el('button', { innerText: '+', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
   const attackPlanHelpBtn      = el('button', { innerText: '?', type: 'button', title: 'Help', style: 'cursor:pointer;padding:2px 7px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:3px;font-size:13px;font-weight:bold;line-height:1;margin-left:4px;' });
   attackPlanHeader.append(attackPlanTitle, attackPlanCollapseBtn, attackPlanHelpBtn);
   attackPlanSection.appendChild(attackPlanHeader);
 
-  const attackPlanContent   = el('div', { style: 'display:block;' });
+  const attackPlanContent   = el('div', { style: 'display:none;' });
   const attackPlanRow       = el('div', { style: 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:8px;' });
   const btnPasteAttackPlan  = el('button', { innerText: 'Paste Attack Plan', type: 'button', style: 'cursor:pointer;padding:8px 16px;background:#5a3a2a;color:#fff;border:1px solid #7a5a3a;border-radius:4px;' });
   const attackPlanContainer = el('div', { id: 'attack_plan_groups', style: 'display:none;margin-top:8px;' });
@@ -859,6 +859,14 @@ window.__tw_helper_loaded = true;
     e.stopPropagation();
     showHelp('Rally Point Opener',
       'Enter FROM and TO coordinates — one pair per line — then click <i>Open Tabs</i> to open a rally point tab for each pair.<br><br>' +
+      'Each row is matched by position: row 1 in FROM attacks row 1 in TO, row 2 attacks row 2, and so on.<br><br>' +
+      '<b>Example:</b><br>' +
+      '<code style="display:block;background:#0a0a0a;padding:8px;border-radius:4px;margin:6px 0;font-size:12px;line-height:1.8;">' +
+      'FROM &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;TO<br>' +
+      '531|537 → 534|534 &nbsp;(tab 1)<br>' +
+      '531|537 → 537|536 &nbsp;(tab 2)<br>' +
+      '539|544 → 534|534 &nbsp;(tab 3)' +
+      '</code>' +
       'Use the search fields to find villages by name or coordinate and append them to the list.<br><br>' +
       'Enable <i>Use current group</i> to automatically use your currently selected in-game village group as the FROM list.');
   });
@@ -867,8 +875,16 @@ window.__tw_helper_loaded = true;
     e.stopPropagation();
     showHelp('Attack Plans',
       'Paste a formatted attack plan to generate one button per attack wave.<br><br>' +
-      'Clicking a wave button opens all attacks in that wave as rally point tabs.<br><br>' +
-      'If a launch time is included in the plan, a live countdown is shown on the button.');
+      'Clicking a wave button opens all attacks in that wave as rally point tabs. If a launch time is included, a live countdown is shown on the button.<br><br>' +
+      '<b>Accepted format (tab or multi-space separated):</b><br>' +
+      '<code style="display:block;background:#0a0a0a;padding:8px;border-radius:4px;margin:6px 0;font-size:11px;line-height:1.8;white-space:pre;">' +
+      'Grp  Attacker   Target     Dist  Travel  Launch           Arrival\n' +
+      '1    528|546    537|536    13.5  4h 2m   06/06 21:38:45  07/06 01:40:55\n' +
+      '1    539|544    534|534    11.2  3h 21m  06/06 21:38:45  07/06 01:00:00\n' +
+      '2    531|537    534|534    8.1   2h 26m  06/06 22:15:00  07/06 00:41:00' +
+      '</code>' +
+      'Only <b>Grp</b>, <b>Attacker</b> and <b>Target</b> are required. Launch time (column 6) is used for the countdown — format must be <b>DD/MM HH:MM:SS</b>.<br><br>' +
+      'You can also paste directly from a Tribal Wars HTML attack plan table.');
   });
 
   btnGlobalHelp.addEventListener('click', e => {
