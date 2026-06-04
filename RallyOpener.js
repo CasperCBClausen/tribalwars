@@ -500,7 +500,7 @@ showHelp('Rally Opener — Overview',
 '4. Click <i>Open Tabs</i> or a wave button to open all rally points at once.<br><br>' +
 '<b>Premium requirements</b><br>' +
 'No Premium is required for the core functionality. The following features require <b>Account Manager</b>:<br>' +
-'— Keep mode templates (reads available units from the Combined Overview)<br>' +
+'— Unit templates (reads available units from the Combined Village Overview)<br>' +
 '— Fake Mode (checks unit availability per village)<br>' +
 '— Use current group (reads your active village group from the Combined Overview)<br><br>' +
 '<b>Popups blocked?</b><br>' +
