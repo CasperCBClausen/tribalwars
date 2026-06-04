@@ -832,7 +832,10 @@ window.__tw_helper_loaded = true;
   })();
 
   // Close
-  closeBtn.addEventListener('click', () => container.remove());
+  closeBtn.addEventListener('click', () => {
+    container.remove();
+    window.__tw_helper_loaded = false;
+  });
 
   // Collapse toggles
   templatesCollapseBtn.onclick  = makeCollapseHandler(templatesContent,  templatesCollapseBtn);
