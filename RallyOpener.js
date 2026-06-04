@@ -111,21 +111,15 @@ titleBar.appendChild(btnGlobalHelp);
 titleWrapper.appendChild(title);
 titleWrapper.appendChild(closeBtn);
 titleBar.appendChild(titleWrapper);
+if(!hasAccountManager){
+var amWarning = el('div',{style:'margin:6px -16px -16px;padding:4px 16px;background:#1a1000;border-top:1px solid #664400;color:#ffaa00;font-size:11px;text-align:center;'});
+amWarning.innerHTML = '⚠ <b>Account Manager not active</b> — Templates, Fake Mode and Use current group disabled';
+titleBar.appendChild(amWarning);
+}
 container.appendChild(titleBar);
 
 var body = el('div',{style:'padding:16px;display:block;'});
 container.appendChild(body);
-
-if(!hasAccountManager){
-var amWarning = el('div',{style:'margin-bottom:12px;padding:10px 14px;background:#2a1a00;border:1px solid #996600;border-radius:6px;color:#ffaa00;font-size:12px;display:flex;align-items:center;gap:10px;'});
-var amWarningIcon = el('span',{style:'font-size:20px;flex-shrink:0;'});
-amWarningIcon.textContent = '⚠';
-var amWarningText = el('span',{style:'line-height:1.5;'});
-amWarningText.innerHTML = '<b>Account Manager not active</b> — Unit templates, Fake Mode and Use current group are disabled. Core functionality (opening rally tabs and attack plans) works normally.';
-amWarning.appendChild(amWarningIcon);
-amWarning.appendChild(amWarningText);
-body.appendChild(amWarning);
-}
 
 // Unit Templates section
 var templatesSection = el('div',{style:'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;'});
@@ -383,8 +377,7 @@ fakeModeWrapper.appendChild(fakeModeLabel);
 
 var btnOpenTabs = el('button',{innerText:'Open Tabs', style:'cursor:pointer;padding:10px 24px;background:#2a5a2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;font-weight:bold;font-size:14px;', type:'button'});
 
-openTabsRow.appendChild(fakeModeCheckbox);
-openTabsRow.appendChild(fakeModeLabel);
+openTabsRow.appendChild(fakeModeWrapper);
 openTabsRow.appendChild(btnOpenTabs);
 rallyContent.appendChild(openTabsRow);
 
@@ -406,14 +399,14 @@ var attackPlanSection = el('div',{style:'margin-bottom:12px;padding:12px;backgro
 var attackPlanHeader = el('div',{style:'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'});
 var attackPlanTitle = el('div',{style:'font-weight:bold;color:#aaa;text-align:center;font-size:13px;flex:1;'});
 attackPlanTitle.textContent = 'Attack Plans';
-var attackPlanCollapseBtn = el('button',{innerText:'+', style:'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;', type:'button'});
+var attackPlanCollapseBtn = el('button',{innerText:'−', style:'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;', type:'button'});
 var attackPlanHelpBtn = el('button',{innerText:'?', type:'button', title:'Help', style:'cursor:pointer;padding:2px 7px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:3px;font-size:13px;font-weight:bold;line-height:1;margin-left:4px;'});
 attackPlanHeader.appendChild(attackPlanTitle);
 attackPlanHeader.appendChild(attackPlanCollapseBtn);
 attackPlanHeader.appendChild(attackPlanHelpBtn);
 attackPlanSection.appendChild(attackPlanHeader);
 
-var attackPlanContent = el('div',{style:'display:none;'});
+var attackPlanContent = el('div',{style:'display:block;'});
 attackPlanSection.appendChild(attackPlanContent);
 
 var attackPlanRow = el('div',{style:'display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:8px;'});
