@@ -1,7 +1,4 @@
 // Rally Opener
-if (window.__tw_helper_loaded) { console.log('Already loaded'); } else {
-window.__tw_helper_loaded = true;
-
 (function () {
 
   /* ── Feature Detection ── */
@@ -832,10 +829,7 @@ window.__tw_helper_loaded = true;
   })();
 
   // Close
-  closeBtn.addEventListener('click', () => {
-    container.remove();
-    window.__tw_helper_loaded = false;
-  });
+  closeBtn.addEventListener('click', () => container.remove());
 
   // Collapse toggles
   templatesCollapseBtn.onclick  = makeCollapseHandler(templatesContent,  templatesCollapseBtn);
@@ -1056,4 +1050,3 @@ window.__tw_helper_loaded = true;
   showMessage('Rally Opener ready!');
 
 })();
-} // end guard
