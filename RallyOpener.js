@@ -98,9 +98,11 @@ title.textContent = 'RALLY OPENER';
 
 // Create buttons for title bar
 var btnConfig = el('button',{innerText:'⚙', title:'Config', style:'position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;padding:6px 10px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:4px;font-size:14px;z-index:10;', type:'button'});
+var btnGlobalHelp = el('button',{innerText:'?', title:'Help', style:'position:absolute;left:52px;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 9px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:4px;font-size:14px;font-weight:bold;z-index:10;', type:'button'});
 var closeBtn = el('button',{innerText:'✕', title:'Close', style:'position:absolute;right:0;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 10px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;font-size:16px;font-weight:bold;z-index:10;'});
 
 titleBar.appendChild(btnConfig);
+titleBar.appendChild(btnGlobalHelp);
 titleWrapper.appendChild(title);
 titleWrapper.appendChild(closeBtn);
 titleBar.appendChild(titleWrapper);
@@ -485,6 +487,19 @@ showHelp('Attack Plans',
 'Paste a formatted attack plan to generate one button per attack wave.<br><br>' +
 'Clicking a wave button opens all attacks in that wave as rally point tabs.<br><br>' +
 'If a launch time is included in the plan, a live countdown is shown on the button.');
+});
+btnGlobalHelp.addEventListener('click', function(e){
+e.stopPropagation();
+showHelp('Rally Opener — Overview',
+'<b>Purpose</b><br>' +
+'Opens rally point tabs for multiple village pairs at once, letting you queue up attacks or fakes quickly without navigating manually.<br><br>' +
+'<b>How to use</b><br>' +
+'1. Load village data via the Settings (⚙) menu — required for coordinate lookup.<br>' +
+'2. Optionally select or create a unit template to pre-fill troop counts.<br>' +
+'3. Enter FROM and TO coordinates (one pair per line) in the Rally Point Opener, or paste an attack plan in the Attack Plans section.<br>' +
+'4. Click <i>Open Tabs</i> or a wave button to open all rally points at once.<br><br>' +
+'<b>Popups blocked?</b><br>' +
+'The script needs permission to open multiple tabs. After clicking Open Tabs, look for the popup blocked icon in your browser\'s address bar, click it, and choose <i>Always allow popups from this site</i>. Then try again.');
 });
 
 // Message history overlay
@@ -1528,9 +1543,14 @@ for(var j=0;j<urls.length;j++){
 (function(url, idx){
 window.setTimeout(function(){
 var w = window.open(url, '_blank');
-if(!w && !_blocked){
+if((!w || w.closed) && !_blocked){
 _blocked = true;
-showMessage('Popups blocked — allow popups for this site in your browser settings', 6000);
+showHelp('Popups Blocked',
+'Your browser is blocking Rally Opener from opening tabs.<br><br>' +
+'<b>To fix:</b><br>' +
+'1. Look for the popup blocked icon in your browser\'s address bar (usually on the right).<br>' +
+'2. Click it and select <i>Always allow popups from this site</i>.<br>' +
+'3. Click <i>Open Tabs</i> again.');
 }
 }, 200 * idx);
 })(urls[j], j);
@@ -1578,9 +1598,14 @@ for(var j=0;j<preparedUrls.length;j++){
 (function(url, idx){
 window.setTimeout(function(){
 var w = window.open(url, '_blank');
-if(!w && !_blocked){
+if((!w || w.closed) && !_blocked){
 _blocked = true;
-showMessage('Popups blocked — allow popups for this site in your browser settings', 6000);
+showHelp('Popups Blocked',
+'Your browser is blocking Rally Opener from opening tabs.<br><br>' +
+'<b>To fix:</b><br>' +
+'1. Look for the popup blocked icon in your browser\'s address bar (usually on the right).<br>' +
+'2. Click it and select <i>Always allow popups from this site</i>.<br>' +
+'3. Click <i>Open Tabs</i> again.');
 }
 }, 200 * idx);
 })(preparedUrls[j], j);
