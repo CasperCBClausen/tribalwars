@@ -3,10 +3,6 @@
 
   /* ── Feature Detection ── */
 
-  const hasAccountManager = typeof game_data !== 'undefined'
-    && game_data.features && game_data.features.AccountManager
-    && game_data.features.AccountManager.active === true;
-
   const hasPremium = typeof game_data !== 'undefined'
     && game_data.features && game_data.features.Premium
     && game_data.features.Premium.active === true;
@@ -14,8 +10,8 @@
   const isOverviewPage = window.location.href.indexOf('screen=overview_villages') !== -1
     && window.location.href.indexOf('mode=combined') !== -1;
 
-  if (!isOverviewPage && hasAccountManager) {
-    if (confirm('Some features require the Combined Village Overview page (Account Manager).\n\nWould you like to be redirected there now?')) {
+  if (!isOverviewPage && hasPremium) {
+    if (confirm('Some features require the Combined Village Overview page (Premium Account).\n\nWould you like to be redirected there now?')) {
       try {
         window.location.href = window.location.origin + window.location.pathname + '?screen=overview_villages&mode=combined';
       } catch (e) {
@@ -363,9 +359,9 @@
     if (!urls.length) {
       if (noUnitDataDetected) {
         showHelp('Unit Data Unavailable',
-          'Fake Mode needs unit counts from the Combined Village Overview, which requires the <b>Account Manager</b> Premium feature.<br><br>' +
+          'Fake Mode needs unit counts from the Combined Village Overview, which requires a <b>Premium Account</b>.<br><br>' +
           'To fix:<br>' +
-          '1. Make sure you have Account Manager active.<br>' +
+          '1. Make sure you have an active Premium Account.<br>' +
           '2. Navigate to the Combined Village Overview page.<br>' +
           '3. Run the script again from there.');
       } else {
@@ -515,9 +511,9 @@
 
   titleBar.appendChild(btnGlobalHelp);
   titleWrapper.appendChild(titleEl);
-  if (!hasAccountManager) {
+  if (!hasPremium) {
     const amWarning = el('div', { style: 'position:absolute;right:40px;top:50%;transform:translateY(-50%);font-size:11px;color:#ffaa00;white-space:nowrap;' });
-    amWarning.textContent = '⚠ Account Manager not active';
+    amWarning.textContent = '⚠ Premium Account not active';
     titleWrapper.appendChild(amWarning);
   }
   titleWrapper.appendChild(closeBtn);
@@ -896,25 +892,22 @@
       '3. Click <i>Open Tabs</i> or a wave button to open all rally points at once.<br><br>' +
       'Village data is fetched on script load if: no data exists or the cached data is more than an hour old.<br><br>' +
       '<b>Premium requirements</b><br>' +
-      'The following features require <b>Account Manager</b>:<br>' +
-      '— Unit templates (reads available units from the Combined Village Overview)<br>' +
-      '— Fake Mode (checks unit availability per village)<br><br>' +
       'The following features require a <b>Premium Account</b>:<br>' +
+      '— Unit templates (reads available units from the Combined Village Overview)<br>' +
+      '— Fake Mode (checks unit availability per village)<br>' +
       '— Use current group (village groups are a Premium feature)<br><br>' +
       '<b>Popups blocked?</b><br>' +
       'After clicking Open Tabs, look for the popup blocked icon in your browser\'s address bar, click it, and choose <i>Always allow popups from this site</i>. Then try again.');
   });
 
   // Feature gating
-  if (!hasAccountManager) {
+  if (!hasPremium) {
     const disabled = 'opacity:0.35;pointer-events:none;';
     templatesSection.style.cssText += disabled;
-    templatesSection.title = 'Requires Account Manager';
+    templatesSection.title = 'Requires Premium Account';
     fakeModeWrapper.style.cssText += disabled;
-    fakeModeWrapper.title = 'Requires Account Manager';
-  }
-  if (!hasPremium) {
-    useGroupWrapper.style.cssText += 'opacity:0.35;pointer-events:none;';
+    fakeModeWrapper.title = 'Requires Premium Account';
+    useGroupWrapper.style.cssText += disabled;
     useGroupWrapper.title = 'Requires Premium Account';
   }
 
