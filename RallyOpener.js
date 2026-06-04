@@ -7,6 +7,10 @@
     && game_data.features && game_data.features.AccountManager
     && game_data.features.AccountManager.active === true;
 
+  const hasPremium = typeof game_data !== 'undefined'
+    && game_data.features && game_data.features.Premium
+    && game_data.features.Premium.active === true;
+
   const isOverviewPage = window.location.href.indexOf('screen=overview_villages') !== -1
     && window.location.href.indexOf('mode=combined') !== -1;
 
@@ -892,23 +896,26 @@
       '3. Click <i>Open Tabs</i> or a wave button to open all rally points at once.<br><br>' +
       'Village data is fetched on script load if: no data exists or the cached data is more than an hour old.<br><br>' +
       '<b>Premium requirements</b><br>' +
-      'No Premium is required for the core functionality. The following features require <b>Account Manager</b>:<br>' +
+      'The following features require <b>Account Manager</b>:<br>' +
       '— Unit templates (reads available units from the Combined Village Overview)<br>' +
-      '— Fake Mode (checks unit availability per village)<br>' +
-      '— Use current group (reads your active village group from the Combined Overview)<br><br>' +
+      '— Fake Mode (checks unit availability per village)<br><br>' +
+      'The following features require a <b>Premium Account</b>:<br>' +
+      '— Use current group (village groups are a Premium feature)<br><br>' +
       '<b>Popups blocked?</b><br>' +
       'After clicking Open Tabs, look for the popup blocked icon in your browser\'s address bar, click it, and choose <i>Always allow popups from this site</i>. Then try again.');
   });
 
-  // Account Manager feature gating
+  // Feature gating
   if (!hasAccountManager) {
     const disabled = 'opacity:0.35;pointer-events:none;';
     templatesSection.style.cssText += disabled;
     templatesSection.title = 'Requires Account Manager';
     fakeModeWrapper.style.cssText += disabled;
     fakeModeWrapper.title = 'Requires Account Manager';
-    useGroupWrapper.style.cssText += disabled;
-    useGroupWrapper.title = 'Requires Account Manager';
+  }
+  if (!hasPremium) {
+    useGroupWrapper.style.cssText += 'opacity:0.35;pointer-events:none;';
+    useGroupWrapper.title = 'Requires Premium Account';
   }
 
   // Message history
