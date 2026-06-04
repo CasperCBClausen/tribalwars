@@ -1629,8 +1629,8 @@ showHelp('Popups Blocked',
 };
 
 btnTestData.onclick = function(){
-fromTextarea.value = '524|496\n524|496\n524|496';
-toTextarea.value = '523|496\n525|496\n522|495';
+fromTextarea.value = '531|537\n531|537';
+toTextarea.value = '534|534\n537|536';
 showMessage('Test data loaded');
 };
 
