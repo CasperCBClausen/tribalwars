@@ -108,14 +108,16 @@ var closeBtn = el('button',{innerText:'✕', title:'Close', style:'position:abso
 
 titleBar.appendChild(btnConfig);
 titleBar.appendChild(btnGlobalHelp);
-titleWrapper.appendChild(title);
+var titleInner = el('div',{style:'display:inline-flex;align-items:center;gap:10px;'});
+titleInner.appendChild(title);
+if(!hasAccountManager){
+var amWarning = el('div',{style:'font-size:11px;color:#ffaa00;'});
+amWarning.innerHTML = '⚠ <b>Account Manager not active</b> — some functionality disabled';
+titleInner.appendChild(amWarning);
+}
+titleWrapper.appendChild(titleInner);
 titleWrapper.appendChild(closeBtn);
 titleBar.appendChild(titleWrapper);
-if(!hasAccountManager){
-var amWarning = el('div',{style:'margin:6px -16px -16px;padding:4px 16px;background:#1a1000;border-top:1px solid #664400;color:#ffaa00;font-size:11px;text-align:center;'});
-amWarning.innerHTML = '⚠ <b>Account Manager not active</b> — Templates, Fake Mode and Use current group disabled';
-titleBar.appendChild(amWarning);
-}
 container.appendChild(titleBar);
 
 var body = el('div',{style:'padding:16px;display:block;'});
