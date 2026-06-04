@@ -496,10 +496,15 @@ showHelp('Rally Opener — Overview',
 '<b>How to use</b><br>' +
 '1. Load village data via the Settings (⚙) menu — required for coordinate lookup.<br>' +
 '2. Optionally select or create a unit template to pre-fill troop counts.<br>' +
-'3. Enter FROM and TO coordinates (one pair per line) in the Rally Point Opener, or paste an attack plan in the Attack Plans section.<br>' +
+'3. Enter FROM and TO coordinates (one pair per line), or paste an attack plan.<br>' +
 '4. Click <i>Open Tabs</i> or a wave button to open all rally points at once.<br><br>' +
+'<b>Premium requirements</b><br>' +
+'No Premium is required for the core functionality. The following features require <b>Account Manager</b>:<br>' +
+'— Keep mode templates (reads available units from the Combined Overview)<br>' +
+'— Fake Mode (checks unit availability per village)<br>' +
+'— Use current group (reads your active village group from the Combined Overview)<br><br>' +
 '<b>Popups blocked?</b><br>' +
-'The script needs permission to open multiple tabs. After clicking Open Tabs, look for the popup blocked icon in your browser\'s address bar, click it, and choose <i>Always allow popups from this site</i>. Then try again.');
+'After clicking Open Tabs, look for the popup blocked icon in your browser\'s address bar, click it, and choose <i>Always allow popups from this site</i>. Then try again.');
 });
 
 // Message history overlay
@@ -951,16 +956,18 @@ var unitsToSend = {};
 var mode = template.mode;
 var config = template.units;
 
-if(mode === 'send'){
-for(var unitType in config){
-if(config[unitType] > 0) unitsToSend[unitType] = config[unitType];
-}
-} else if(mode === 'keep'){
 for(var unitType in availableUnits){
 var available = availableUnits[unitType] || 0;
-var toSend = Math.max(0, available - (config[unitType] || 0));
-if(toSend > 0) unitsToSend[unitType] = toSend;
+var templateValue = config[unitType] || 0;
+var toSend = 0;
+
+if(mode === 'send'){
+toSend = Math.min(templateValue, available);
+} else if(mode === 'keep'){
+toSend = Math.max(0, available - templateValue);
 }
+
+if(toSend > 0) unitsToSend[unitType] = toSend;
 }
 
 return unitsToSend;
@@ -1138,44 +1145,41 @@ villageGroups[pair.fromId].push(pair);
     
 // For each village, calculate how many attacks we can afford
 var finalPairs = [];
+var noUnitDataDetected = false;
 for(var villageId in villageGroups){
 var villagePairs = villageGroups[villageId];
 var availableUnits = getVillageUnitsFromOverview(villageId);
 var template = unitTemplates[currentTemplate];
-      
+
+if(Object.keys(availableUnits).length === 0) noUnitDataDetected = true;
+
 // Calculate how many attacks this village can support
 var maxAttacks = calculateMaxAttacks(availableUnits, template);
 console.log('Village', villageId, 'can support', maxAttacks, 'attacks out of', villagePairs.length, 'requested');
-      
+
 if(maxAttacks >= villagePairs.length){
-// Can do all attacks
 finalPairs = finalPairs.concat(villagePairs);
 } else if(maxAttacks > 0){
-// Randomly select which attacks to do
 var shuffled = villagePairs.slice();
-// Fisher-Yates shuffle
 for(var k=shuffled.length-1;k>0;k--){
 var randIdx = Math.floor(Math.random() * (k+1));
 var temp = shuffled[k];
 shuffled[k] = shuffled[randIdx];
 shuffled[randIdx] = temp;
 }
-// Take only the first maxAttacks
 for(var m=0;m<maxAttacks;m++){
 finalPairs.push(shuffled[m]);
 }
-// Log skipped attacks
 for(var n=maxAttacks;n<shuffled.length;n++){
 failed.push('Row ' + shuffled[n].index + ': insufficient units (randomly skipped in Fake Mode)');
 }
 } else {
-// Can't do any attacks from this village
 for(var p=0;p<villagePairs.length;p++){
-failed.push('Row ' + villagePairs[p].index + ': insufficient units in village');
+failed.push('Row ' + villagePairs[p].index + (noUnitDataDetected ? ': no unit data — open Combined Village Overview first' : ': insufficient units in village'));
 }
 }
 }
-    
+
 pairs = finalPairs;
 }
   
@@ -1187,7 +1191,16 @@ urls.push(url);
 }
   
 if(urls.length === 0){
+if(noUnitDataDetected){
+showHelp('Unit Data Unavailable',
+'Fake Mode needs unit counts from the Combined Village Overview, which requires the <b>Account Manager</b> Premium feature.<br><br>' +
+'To fix:<br>' +
+'1. Make sure you have Account Manager active.<br>' +
+'2. Navigate to the Combined Village Overview page.<br>' +
+'3. Run the script again from there.');
+} else {
 showMessage('No valid pairs found - check your coordinates and available units');
+}
 if(failed.length > 0){
 console.log('Rally Opener failures:', failed);
 }
