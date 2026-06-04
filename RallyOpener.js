@@ -102,11 +102,9 @@ var title = el('div',{style:'font-size:22px;font-weight:bold;color:#e0e0e0;text-
 title.textContent = 'RALLY OPENER';
 
 // Create buttons for title bar
-var btnConfig = el('button',{innerText:'⚙', title:'Config', style:'position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;padding:6px 10px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:4px;font-size:14px;z-index:10;', type:'button'});
-var btnGlobalHelp = el('button',{innerText:'?', title:'Help', style:'position:absolute;left:52px;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 9px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:4px;font-size:14px;font-weight:bold;z-index:10;', type:'button'});
+var btnGlobalHelp = el('button',{innerText:'?', title:'Help', style:'position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 9px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:4px;font-size:14px;font-weight:bold;z-index:10;', type:'button'});
 var closeBtn = el('button',{innerText:'✕', title:'Close', style:'position:absolute;right:0;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 10px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;font-size:16px;font-weight:bold;z-index:10;'});
 
-titleBar.appendChild(btnConfig);
 titleBar.appendChild(btnGlobalHelp);
 titleWrapper.appendChild(title);
 if(!hasAccountManager){
@@ -503,10 +501,10 @@ showHelp('Rally Opener — Overview',
 '<b>Purpose</b><br>' +
 'Opens rally point tabs for multiple village pairs at once, letting you queue up attacks or fakes quickly without navigating manually.<br><br>' +
 '<b>How to use</b><br>' +
-'1. Load village data via the Settings (⚙) menu — required for coordinate lookup.<br>' +
-'2. Optionally select or create a unit template to pre-fill troop counts.<br>' +
-'3. Enter FROM and TO coordinates (one pair per line), or paste an attack plan.<br>' +
-'4. Click <i>Open Tabs</i> or a wave button to open all rally points at once.<br><br>' +
+'1. Optionally select or create a unit template to pre-fill troop counts.<br>' +
+'2. Enter FROM and TO coordinates (one pair per line), or paste an attack plan.<br>' +
+'3. Click <i>Open Tabs</i> or a wave button to open all rally points at once.<br><br>' +
+'Village data is fetched automatically from the game server and refreshed every hour.<br><br>' +
 '<b>Premium requirements</b><br>' +
 'No Premium is required for the core functionality. The following features require <b>Account Manager</b>:<br>' +
 '— Unit templates (reads available units from the Combined Village Overview)<br>' +
@@ -556,7 +554,7 @@ function startDrag(e) {
 e = e || window.event;
 var target = e.target || e.srcElement;
 // Don't drag if clicking on buttons, inputs, textareas, selects, or labels
-if(target === closeBtn || target === btnConfig) return;
+if(target === closeBtn) return;
 if(target.tagName === 'BUTTON' || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.tagName === 'LABEL') return;
 // Don't drag if clicking inside sections with interactive content
 if(target.closest && (target.closest('input') || target.closest('textarea') || target.closest('button') || target.closest('select') || target.closest('label'))) return;
@@ -668,37 +666,21 @@ toDropdown.style.display='none';
 var villagesArr = parseVillagesTxt(loadVillagesText());
 var villagesIndex = buildCoordIndex(villagesArr);
 
-// Auto-fetch village.txt if older than 24 hours
+// Auto-fetch village.txt if missing or older than 1 hour
 (function(){
 try{
 var lastFetch = localStorage.getItem('tw_villages_updated');
-if(!lastFetch){
-// Never fetched, try to fetch now
-showMessage('Fetching village.txt (first time)...');
+var needsFetch = !lastFetch || (Date.now() - Number(lastFetch)) > 60 * 60 * 1000;
+if(needsFetch){
 tryFetchVillagesFromServer().then(function(txt){
 if(!txt) throw new Error('Empty');
 saveVillagesText(txt);
 villagesArr = parseVillagesTxt(txt);
 villagesIndex = buildCoordIndex(villagesArr);
-showMessage('village.txt loaded (' + villagesArr.length + ' entries)');
+showMessage('Village data updated (' + villagesArr.length + ' villages)');
 }).catch(function(err){
-showMessage('Could not auto-fetch village.txt');
+if(!lastFetch) showMessage('Could not load village data');
 });
-} else {
-var timeSince = Date.now() - Number(lastFetch);
-var twentyFourHours = 24 * 60 * 60 * 1000;
-if(timeSince > twentyFourHours){
-showMessage('Fetching village.txt (24h update)...');
-tryFetchVillagesFromServer().then(function(txt){
-if(!txt) throw new Error('Empty');
-saveVillagesText(txt);
-villagesArr = parseVillagesTxt(txt);
-villagesIndex = buildCoordIndex(villagesArr);
-showMessage('village.txt updated (' + villagesArr.length + ' entries)');
-}).catch(function(err){
-showMessage('Auto-update failed, using cached data');
-});
-}
 }
 }catch(e){
 console.error('Auto-fetch error:', e);
@@ -1272,122 +1254,6 @@ return maxAttacks === Infinity ? 0 : maxAttacks;
 // Attack Plan functions
 var attackPlanGroups = {};
 
-// Config modal
-var configModal = el('div',{style:'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100000;display:none;align-items:center;justify-content:center;'});
-var configContent = el('div',{style:'background:#1a1a1a;color:#fff;padding:20px;border-radius:8px;border:2px solid #444;min-width:400px;max-width:600px;'});
-var configTitle = el('div',{style:'font-size:18px;font-weight:bold;margin-bottom:16px;color:#e0e0e0;text-align:center;'});
-configTitle.textContent = 'Settings';
-configContent.appendChild(configTitle);
-
-// Village data section
-var villageDataSection = el('div',{style:'margin-bottom:16px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;'});
-var villageDataTitle = el('div',{style:'font-weight:bold;margin-bottom:8px;color:#aaa;font-size:13px;'});
-villageDataTitle.textContent = 'Village Data';
-villageDataSection.appendChild(villageDataTitle);
-
-var villageDataInfo = el('div',{style:'margin-bottom:8px;font-size:11px;color:#888;'});
-villageDataSection.appendChild(villageDataInfo);
-
-var villageDataButtons = el('div',{style:'display:flex;gap:8px;flex-wrap:wrap;'});
-var btnGetConfig = el('button',{innerText:'Fetch village.txt', style:'cursor:pointer;padding:6px 12px;background:#2a5a2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;font-size:12px;', type:'button'});
-var btnUploadConfig = el('button',{innerText:'Upload village.txt', style:'cursor:pointer;padding:6px 12px;background:#2a4a5a;color:#fff;border:1px solid:#3a6a7a;border-radius:4px;font-size:12px;', type:'button'});
-var fileInput = el('input',{type:'file', accept:'.txt', style:'display:none'});
-villageDataButtons.appendChild(btnGetConfig);
-villageDataButtons.appendChild(btnUploadConfig);
-villageDataButtons.appendChild(fileInput);
-villageDataSection.appendChild(villageDataButtons);
-configContent.appendChild(villageDataSection);
-
-// Close config button
-var configCloseRow = el('div',{style:'display:flex;justify-content:center;margin-top:16px;'});
-var btnCloseConfig = el('button',{innerText:'Close', style:'cursor:pointer;padding:8px 24px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;font-size:12px;', type:'button'});
-configCloseRow.appendChild(btnCloseConfig);
-configContent.appendChild(configCloseRow);
-
-configModal.appendChild(configContent);
-document.body.appendChild(configModal);
-
-// Update village data info
-function updateVillageDataInfo(){
-var lastFetch = localStorage.getItem('tw_villages_updated');
-if(!lastFetch){
-villageDataInfo.textContent = 'No village data loaded';
-villageDataInfo.style.color = '#cc6666';
-} else {
-var timeSince = Date.now() - Number(lastFetch);
-var hours = Math.floor(timeSince / (60 * 60 * 1000));
-var minutes = Math.floor((timeSince % (60 * 60 * 1000)) / (60 * 1000));
-var timeStr = hours > 0 ? hours + 'h ' + minutes + 'm ago' : minutes + 'm ago';
-villageDataInfo.textContent = 'Last updated: ' + timeStr + ' (' + villagesArr.length + ' villages)';
-villageDataInfo.style.color = '#88cc88';
-}
-}
-
-// Config button handler
-btnConfig.addEventListener('click', function(){
-updateVillageDataInfo();
-configModal.style.display = 'flex';
-});
-
-// Close config modal
-btnCloseConfig.addEventListener('click', function(){
-configModal.style.display = 'none';
-});
-
-configModal.addEventListener('click', function(e){
-if(e.target === configModal){
-configModal.style.display = 'none';
-}
-});
-
-// Upload button (in config)
-btnUploadConfig.addEventListener('click', function(){ try{ fileInput.click(); }catch(e){} });
-
-fileInput.addEventListener('change', function(ev){
-var f = ev.target.files && ev.target.files[0];
-if(!f) return;
-var r = new FileReader();
-r.onload = function(){ 
-try{ 
-saveVillagesText(String(r.result)); 
-villagesArr = parseVillagesTxt(String(r.result)); 
-villagesIndex = buildCoordIndex(villagesArr); 
-showMessage('village.txt uploaded (' + villagesArr.length + ' entries)');
-updateVillageDataInfo();
-}catch(e){ 
-showMessage('Failed to parse uploaded file'); 
-} 
-};
-r.onerror = function(){ showMessage('Failed to read file'); };
-r.readAsText(f);
-fileInput.value = '';
-});
-
-// Get village.txt button (in config)
-btnGetConfig.addEventListener('click', function(){
-var lastFetch = localStorage.getItem('tw_villages_updated');
-var now = Date.now();
-var oneHour = 60 * 60 * 1000;
-if(lastFetch){
-var timeSince = now - Number(lastFetch);
-if(timeSince < oneHour){
-var minutesLeft = Math.ceil((oneHour - timeSince) / 60000);
-var confirmed = confirm('WARNING: Script rules require at least 1 hour between fetches.\n\nLast fetch: ' + Math.floor(timeSince / 60000) + ' min ago.\nWait ' + minutesLeft + ' more min.\n\nFetch anyway?');
-if(!confirmed) return;
-}
-}
-showMessage('Fetching village.txt...');
-tryFetchVillagesFromServer().then(function(txt){
-if(!txt) throw new Error('Empty');
-saveVillagesText(txt);
-villagesArr = parseVillagesTxt(txt);
-villagesIndex = buildCoordIndex(villagesArr);
-showMessage('village.txt saved (' + villagesArr.length + ' entries)');
-updateVillageDataInfo();
-}).catch(function(err){
-showMessage('Failed: ' + (err && err.message ? err.message : String(err)));
-});
-});
 
 function parseAttackPlan(text){
 console.log('Parsing attack plan, text length:', text.length);
