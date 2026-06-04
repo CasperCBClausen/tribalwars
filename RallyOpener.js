@@ -2,13 +2,18 @@
 if(window.__tw_helper_loaded) { console.log('Already loaded'); } else {
 window.__tw_helper_loaded = true;
 
+// Check Account Manager availability
+var hasAccountManager = typeof game_data !== 'undefined' &&
+game_data.features && game_data.features.AccountManager &&
+game_data.features.AccountManager.active === true;
+
 // Check if we're on the combined overview page
 var currentUrl = window.location.href;
 var isOverviewPage = currentUrl.indexOf('screen=overview_villages') !== -1 && currentUrl.indexOf('mode=combined') !== -1;
 
 var confirmRedirect = false;
-if(!isOverviewPage){
-confirmRedirect = confirm('Rally Opener works best on the Combined Village Overview page.\n\nWould you like to be redirected there now?');
+if(!isOverviewPage && hasAccountManager){
+confirmRedirect = confirm('Some features require the Combined Village Overview page (Account Manager).\n\nWould you like to be redirected there now?');
 if(confirmRedirect){
 try{
 var baseUrl = window.location.origin + window.location.pathname;
@@ -20,8 +25,8 @@ alert('Could not redirect. Please navigate to:\nOverview → Combined → Villag
 }
 }
 
-// Only continue if on correct page or user chose to stay
-if(isOverviewPage || !confirmRedirect){
+// Only continue if redirect was not chosen
+if(!confirmRedirect){
 
 /* --- Utilities --- */
 function qs(sel,root){ root = root || document; return root.querySelector(sel); }
@@ -110,6 +115,17 @@ container.appendChild(titleBar);
 
 var body = el('div',{style:'padding:16px;display:block;'});
 container.appendChild(body);
+
+if(!hasAccountManager){
+var amWarning = el('div',{style:'margin-bottom:12px;padding:10px 14px;background:#2a1a00;border:1px solid #996600;border-radius:6px;color:#ffaa00;font-size:12px;display:flex;align-items:center;gap:10px;'});
+var amWarningIcon = el('span',{style:'font-size:20px;flex-shrink:0;'});
+amWarningIcon.textContent = '⚠';
+var amWarningText = el('span',{style:'line-height:1.5;'});
+amWarningText.innerHTML = '<b>Account Manager not active</b> — Unit templates, Fake Mode and Use current group are disabled. Core functionality (opening rally tabs and attack plans) works normally.';
+amWarning.appendChild(amWarningIcon);
+amWarning.appendChild(amWarningText);
+body.appendChild(amWarning);
+}
 
 // Unit Templates section
 var templatesSection = el('div',{style:'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;'});
@@ -506,6 +522,17 @@ showHelp('Rally Opener — Overview',
 '<b>Popups blocked?</b><br>' +
 'After clicking Open Tabs, look for the popup blocked icon in your browser\'s address bar, click it, and choose <i>Always allow popups from this site</i>. Then try again.');
 });
+
+// Grey out Account Manager features when unavailable
+if(!hasAccountManager){
+var _amDisableStyle = 'opacity:0.35;pointer-events:none;';
+templatesSection.style.cssText += _amDisableStyle;
+templatesSection.title = 'Requires Account Manager';
+fakeModeWrapper.style.cssText += _amDisableStyle;
+fakeModeWrapper.title = 'Requires Account Manager';
+useGroupWrapper.style.cssText += _amDisableStyle;
+useGroupWrapper.title = 'Requires Account Manager';
+}
 
 // Message history overlay
 var msgHistoryOverlay = el('div',{style:'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:200000;display:none;align-items:center;justify-content:center;'});
