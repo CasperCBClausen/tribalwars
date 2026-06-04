@@ -108,12 +108,14 @@ var closeBtn = el('button',{innerText:'✕', title:'Close', style:'position:abso
 
 titleBar.appendChild(btnConfig);
 titleBar.appendChild(btnGlobalHelp);
-titleWrapper.appendChild(title);
+var titleInner = el('div',{style:'display:inline-flex;align-items:center;gap:10px;'});
+titleInner.appendChild(title);
 if(!hasAccountManager){
-var amWarning = el('div',{style:'position:absolute;left:calc(50% + 90px);top:50%;transform:translateY(-50%);font-size:11px;color:#ffaa00;white-space:nowrap;'});
-amWarning.innerHTML = '⚠ No Account Manager - some functionality disabled';
-titleWrapper.appendChild(amWarning);
+var amWarning = el('div',{style:'font-size:11px;color:#ffaa00;white-space:nowrap;'});
+amWarning.textContent = '⚠ Account Manager not active';
+titleInner.appendChild(amWarning);
 }
+titleWrapper.appendChild(titleInner);
 titleWrapper.appendChild(closeBtn);
 titleBar.appendChild(titleWrapper);
 container.appendChild(titleBar);
