@@ -259,17 +259,19 @@
     return unitsToSend;
   }
 
-  function calculateMaxAttacks(availableUnits, template) {
+  function calculateMaxAttacks(availableUnits, template, reserves) {
     if (!template || !template.units) return 0;
     const { mode, units: config } = template;
+    const res = reserves || {};
     let max = Infinity;
     for (const unitType in config) {
       const required = config[unitType];
       if (!required) continue;
       const available = availableUnits[unitType] || 0;
+      const effectiveAvailable = Math.max(0, available - (res[unitType] || 0));
       const possible = mode === 'send'
-        ? Math.floor(available / required)
-        : (Math.max(0, available - required) > 0 ? Infinity : 0);
+        ? Math.floor(effectiveAvailable / required)
+        : (Math.max(0, effectiveAvailable - required) > 0 ? Infinity : 0);
       max = Math.min(max, possible);
     }
     return max === Infinity ? 0 : max;
@@ -337,7 +339,7 @@
         const vPairs = villageGroups[villageId];
         const available = getVillageUnitsFromOverview(villageId);
         if (Object.keys(available).length === 0) noUnitDataDetected = true;
-        const maxAttacks = calculateMaxAttacks(available, unitTemplates[currentTemplate]);
+        const maxAttacks = calculateMaxAttacks(available, unitTemplates[currentTemplate], getFakeReserves());
 
         if (maxAttacks >= vPairs.length) {
           vPairs.forEach(p => finalPairs.push(p));
@@ -644,6 +646,24 @@
   const btnOpenTabs = el('button', { innerText: 'Open Tabs', type: 'button', style: 'cursor:pointer;padding:10px 24px;background:#2a5a2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;font-weight:bold;font-size:14px;' });
   openTabsRow.append(fakeModeWrapper, btnOpenTabs);
   rallyContent.appendChild(openTabsRow);
+
+  // Fake Mode Reserves
+  const fakeReservesRow = el('div', { style: 'display:none;margin-top:8px;padding:8px;background:#0a0a0a;border-radius:4px;border:1px solid #2a2a2a;' });
+  const fakeReservesTitle = el('div', { style: 'font-size:11px;color:#888;margin-bottom:4px;' });
+  fakeReservesTitle.textContent = 'Keep home (reserves per village):';
+  const fakeReservesLabels = el('div', { style: 'display:flex;align-items:center;gap:6px;margin-bottom:2px;' });
+  const fakeReservesInputsRow = el('div', { style: 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;' });
+  const fakeReserveInputs = {};
+  UNIT_TYPES.forEach(u => {
+    const lbl = el('span', { style: 'color:#888;font-size:9px;white-space:nowrap;width:50px;min-width:50px;text-align:center;display:block;flex-shrink:0;' });
+    lbl.textContent = UNIT_NAMES[u];
+    fakeReservesLabels.appendChild(lbl);
+    fakeReserveInputs[u] = el('input', { type: 'number', min: '0', value: '', placeholder: '0', style: inputStyle });
+    fakeReservesInputsRow.appendChild(fakeReserveInputs[u]);
+  });
+  fakeReservesRow.append(fakeReservesTitle, fakeReservesLabels, fakeReservesInputsRow);
+  rallyContent.appendChild(fakeReservesRow);
+
   rallySection.appendChild(rallyContent);
   body.appendChild(rallySection);
 
@@ -746,6 +766,15 @@
     });
     unitTemplates[currentTemplate] = { mode, units };
     saveTemplates();
+  }
+
+  function getFakeReserves() {
+    const res = {};
+    UNIT_TYPES.forEach(u => {
+      const v = parseInt(fakeReserveInputs[u].value) || 0;
+      if (v > 0) res[u] = v;
+    });
+    return res;
   }
 
   function setupSearch(inputEl, dropdownEl, targetTextarea) {
@@ -927,6 +956,22 @@
   msgHistoryCloseBtn.addEventListener('click', () => { msgHistoryOverlay.style.display = 'none'; });
   msgHistoryOverlay.addEventListener('click', e => { if (e.target === msgHistoryOverlay) msgHistoryOverlay.style.display = 'none'; });
 
+  // Fake Mode toggle — show/hide reserves panel
+  fakeModeCheckbox.addEventListener('change', () => {
+    fakeReservesRow.style.display = fakeModeCheckbox.checked ? 'block' : 'none';
+  });
+
+  // Fake reserves persistence
+  UNIT_TYPES.forEach(u => {
+    fakeReserveInputs[u].addEventListener('input', () => {
+      try {
+        const res = {};
+        UNIT_TYPES.forEach(ut => { const v = parseInt(fakeReserveInputs[ut].value) || 0; if (v) res[ut] = v; });
+        localStorage.setItem('tw_fake_reserves', JSON.stringify(res));
+      } catch (e) {}
+    });
+  });
+
   // Use current group toggle
   useGroupCheckbox.addEventListener('change', () => {
     const active = useGroupCheckbox.checked;
@@ -1047,6 +1092,15 @@
 
   loadTemplates();
   refreshTemplateSelect();
+
+  try {
+    const savedRes = localStorage.getItem('tw_fake_reserves');
+    if (savedRes) {
+      const res = JSON.parse(savedRes);
+      UNIT_TYPES.forEach(u => { if (res[u]) fakeReserveInputs[u].value = res[u]; });
+    }
+  } catch (e) {}
+
   showMessage('Rally Opener ready!');
 
 })();
