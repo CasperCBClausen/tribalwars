@@ -950,25 +950,19 @@ function calculateUnitsToSend(availableUnits, template){
 var unitsToSend = {};
 var mode = template.mode;
 var config = template.units;
-  
+
+if(mode === 'send'){
+for(var unitType in config){
+if(config[unitType] > 0) unitsToSend[unitType] = config[unitType];
+}
+} else if(mode === 'keep'){
 for(var unitType in availableUnits){
 var available = availableUnits[unitType] || 0;
-var templateValue = config[unitType] || 0;
-var toSend = 0;
-  
-if(mode === 'send'){
-// Send X units - send exactly the amount specified (or all if less available)
-toSend = Math.min(templateValue, available);
-} else if(mode === 'keep'){
-// Keep X units at home - send everything except the reserve
-toSend = Math.max(0, available - templateValue);
-}
-  
-if(toSend > 0){
-unitsToSend[unitType] = toSend;
+var toSend = Math.max(0, available - (config[unitType] || 0));
+if(toSend > 0) unitsToSend[unitType] = toSend;
 }
 }
-  
+
 return unitsToSend;
 }
 
@@ -1396,7 +1390,12 @@ continue;
 var launchTime = null;
 if(parts.length >= 6){
 var launchStr = parts[5].trim();
-if(launchStr.match(/\d{4}-\d{2}-\d{2}/)){
+var dmhms = launchStr.match(/(\d{1,2})\/(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})/);
+if(dmhms){
+var _srv = getCurrentServerTime();
+launchTime = new Date(_srv.getFullYear(), parseInt(dmhms[2])-1, parseInt(dmhms[1]), parseInt(dmhms[3]), parseInt(dmhms[4]), parseInt(dmhms[5]));
+console.log('Launch time:', launchTime);
+} else if(launchStr.match(/\d{4}-\d{2}-\d{2}/)){
 launchTime = new Date(launchStr);
 console.log('Launch time:', launchTime);
 }
@@ -1433,7 +1432,11 @@ if(!toTarget.match(/\d+\|\d+/)) continue;
 var launchTime = null;
 if(cells.length >= 6){
 var launchStr = cells[5].textContent.trim();
-if(launchStr.match(/\d{4}-\d{2}-\d{2}/)){
+var dmhms = launchStr.match(/(\d{1,2})\/(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})/);
+if(dmhms){
+var _srv = getCurrentServerTime();
+launchTime = new Date(_srv.getFullYear(), parseInt(dmhms[2])-1, parseInt(dmhms[1]), parseInt(dmhms[3]), parseInt(dmhms[4]), parseInt(dmhms[5]));
+} else if(launchStr.match(/\d{4}-\d{2}-\d{2}/)){
 launchTime = new Date(launchStr);
 }
 }
