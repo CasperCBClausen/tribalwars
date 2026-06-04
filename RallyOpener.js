@@ -1523,8 +1523,17 @@ showMessage('No valid attacks in this group');
 return;
 }
 showMessage('Opening ' + urls.length + ' tabs for group...');
+var _blocked = false;
 for(var j=0;j<urls.length;j++){
-window.open(urls[j], '_blank');
+(function(url, idx){
+window.setTimeout(function(){
+var w = window.open(url, '_blank');
+if(!w && !_blocked){
+_blocked = true;
+showMessage('Popups blocked — allow popups for this site in your browser settings', 6000);
+}
+}, 200 * idx);
+})(urls[j], j);
 }
 }
 
@@ -1564,8 +1573,17 @@ return;
 }
 
 showMessage('Opening ' + preparedUrls.length + ' tabs...');
+var _blocked = false;
 for(var j=0;j<preparedUrls.length;j++){
-window.open(preparedUrls[j], '_blank');
+(function(url, idx){
+window.setTimeout(function(){
+var w = window.open(url, '_blank');
+if(!w && !_blocked){
+_blocked = true;
+showMessage('Popups blocked — allow popups for this site in your browser settings', 6000);
+}
+}, 200 * idx);
+})(preparedUrls[j], j);
 }
 };
 
