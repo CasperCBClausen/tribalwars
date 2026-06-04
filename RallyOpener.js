@@ -1,1544 +1,1040 @@
-// Rally Opener - Direct execution version (no IIFE)
-if(window.__tw_helper_loaded) { console.log('Already loaded'); } else {
+// Rally Opener
+if (window.__tw_helper_loaded) { console.log('Already loaded'); } else {
 window.__tw_helper_loaded = true;
 
-// Check Account Manager availability
-var hasAccountManager = typeof game_data !== 'undefined' &&
-game_data.features && game_data.features.AccountManager &&
-game_data.features.AccountManager.active === true;
-
-// Check if we're on the combined overview page
-var currentUrl = window.location.href;
-var isOverviewPage = currentUrl.indexOf('screen=overview_villages') !== -1 && currentUrl.indexOf('mode=combined') !== -1;
-
-var confirmRedirect = false;
-if(!isOverviewPage && hasAccountManager){
-confirmRedirect = confirm('Some features require the Combined Village Overview page (Account Manager).\n\nWould you like to be redirected there now?');
-if(confirmRedirect){
-try{
-var baseUrl = window.location.origin + window.location.pathname;
-var newUrl = baseUrl + '?screen=overview_villages&mode=combined';
-window.location.href = newUrl;
-}catch(e){
-alert('Could not redirect. Please navigate to:\nOverview → Combined → Village Overview');
-}
-}
-}
-
-// Only continue if redirect was not chosen
-if(!confirmRedirect){
-
-/* --- Utilities --- */
-function qs(sel,root){ root = root || document; return root.querySelector(sel); }
-function el(tag,opts){ var e=document.createElement(tag); if(opts){ for(var k in opts) if(opts.hasOwnProperty(k)) e[k]=opts[k]; } return e; }
-function saveVillagesText(txt){ try{ localStorage.setItem('tw_villages_txt', txt); localStorage.setItem('tw_villages_updated', String(Date.now())); }catch(e){} }
-function loadVillagesText(){ try{ return localStorage.getItem('tw_villages_txt') || null; }catch(e){ return null; } }
-
-// Unit type definitions - must be early in script
-var UNIT_TYPES = ['spear','sword','axe','archer','spy','light','marcher','heavy','ram','catapult','knight','snob'];
-var UNIT_NAMES = {
-spear:'Spear', sword:'Sword', axe:'Axe', archer:'Archer', spy:'Scout', 
-light:'Light Cav', marcher:'Mounted Archer', heavy:'Heavy Cav', 
-ram:'Ram', catapult:'Catapult', knight:'Paladin', snob:'Noble'
-};
-
-function parseVillagesTxt(txt){
-var out=[]; if(!txt) return out;
-var lines = txt.split(/\r?\n/);
-for(var i=0;i<lines.length;i++){
-var L = lines[i];
-if(!L || !L.trim) continue;
-if(!L.trim()) continue;
-var parts = L.split(',');
-if(parts.length < 4) continue;
-var id = parts[0];
-var name = (parts[1]||'').replace(/\+/g,' ');
-try{ name = decodeURIComponent(name); }catch(e){}
-var x = parts[2] && parts[2].replace(/\D/g,'') ? Number(parts[2]) : null;
-var y = parts[3] && parts[3].replace(/\D/g,'') ? Number(parts[3]) : null;
-if(id && x!=null && y!=null) out.push({id:id,name:name,x:x,y:y,raw:L});
-}
-return out;
-}
-function coordKey(x,y){ return x + '|' + y; }
-function buildCoordIndex(arr){
-if(typeof Map !== 'undefined'){ var m=new Map(); for(var i=0;i<arr.length;i++){ var v=arr[i]; m.set(coordKey(v.x,v.y), v); } return m; }
-var obj={}; for(var j=0;j<arr.length;j++){ var vv=arr[j]; obj[coordKey(vv.x,vv.y)]=vv; } return obj;
-}
-function lookupIndex(idx,key){ if(typeof Map !== 'undefined' && idx instanceof Map) return idx.get(key); return idx[key]; }
-
-var msgBox;
-var messageHistory = [];
-function showMessage(msg,timeout){
-timeout = timeout || 3000;
-messageHistory.push({text: msg, time: new Date()});
-if(msgBox){
-msgBox.textContent = msg;
-if(msgBox._t) clearTimeout(msgBox._t);
-msgBox._t = setTimeout(function(){ msgBox.textContent = ''; }, timeout);
-}
-}
-
-function tryFetchVillagesFromServer(){
-var base = location.origin;
-var plain = base + '/map/village.txt';
-return fetch(plain).then(function(r){ 
-if(!r.ok) throw new Error('Failed to fetch village.txt'); 
-return r.text(); 
-});
-}
-
-// Remove existing UI if present
-if(document.getElementById('tw_open_tabs_ui')) {
-document.getElementById('tw_open_tabs_ui').remove();
-}
-
-/* --- Build UI --- */
-var container = el('div',{id:'tw_open_tabs_ui', style:'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:99999;background:#1a1a1a;color:#fff;padding:0;border-radius:8px;font-family:Arial, Helvetica, sans-serif;font-size:13px;width:880px;box-shadow:0 8px 24px rgba(0,0,0,0.8);resize:both;overflow:auto;border:2px solid #333;'});
-
-var titleBar = el('div',{style:'cursor:move;padding:16px;background:linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);border-top-left-radius:6px;border-top-right-radius:6px;user-select:none;border-bottom:2px solid #444;position:relative;'});
-var titleWrapper = el('div',{style:'text-align:center;position:relative;'});
-var title = el('div',{style:'font-size:22px;font-weight:bold;color:#e0e0e0;text-shadow:2px 2px 4px rgba(0,0,0,0.6);letter-spacing:1px;'});
-title.textContent = 'RALLY OPENER';
-
-// Create buttons for title bar
-var btnGlobalHelp = el('button',{innerText:'?', title:'Help', style:'position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 9px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:4px;font-size:14px;font-weight:bold;z-index:10;', type:'button'});
-var closeBtn = el('button',{innerText:'✕', title:'Close', style:'position:absolute;right:0;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 10px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;font-size:16px;font-weight:bold;z-index:10;'});
-
-titleBar.appendChild(btnGlobalHelp);
-titleWrapper.appendChild(title);
-if(!hasAccountManager){
-var amWarning = el('div',{style:'position:absolute;right:40px;top:50%;transform:translateY(-50%);font-size:11px;color:#ffaa00;white-space:nowrap;'});
-amWarning.textContent = '⚠ Account Manager not active';
-titleWrapper.appendChild(amWarning);
-}
-titleWrapper.appendChild(closeBtn);
-titleBar.appendChild(titleWrapper);
-container.appendChild(titleBar);
-
-var body = el('div',{style:'padding:16px;display:block;'});
-container.appendChild(body);
-
-// Unit Templates section
-var templatesSection = el('div',{style:'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;'});
-var templatesSectionHeader = el('div',{style:'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'});
-var templatesSectionTitle = el('div',{style:'font-weight:bold;color:#aaa;text-align:center;font-size:13px;flex:1;'});
-templatesSectionTitle.textContent = 'Unit Templates';
-var templatesCollapseBtn = el('button',{innerText:'−', style:'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;', type:'button'});
-var templatesHelpBtn = el('button',{innerText:'?', type:'button', title:'Help', style:'cursor:pointer;padding:2px 7px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:3px;font-size:13px;font-weight:bold;line-height:1;margin-left:4px;'});
-templatesSectionHeader.appendChild(templatesSectionTitle);
-templatesSectionHeader.appendChild(templatesCollapseBtn);
-templatesSectionHeader.appendChild(templatesHelpBtn);
-templatesSection.appendChild(templatesSectionHeader);
-
-var templatesContent = el('div',{style:'display:block;'});
-templatesSection.appendChild(templatesContent);
-
-var templateControls = el('div',{style:'display:flex;gap:8px;margin-bottom:8px;align-items:center;justify-content:center;flex-wrap:wrap;'});
-templatesContent.appendChild(templateControls);
-
-var templateSelect = el('select',{style:'padding:6px;background:#0f0f0f;color:#fff;border:1px solid #444;border-radius:4px;min-width:150px;'});
-var noneOption = el('option',{value:'', innerText:'-- Select Template --'});
-templateSelect.appendChild(noneOption);
-templateControls.appendChild(templateSelect);
-
-var btnNewTemplate = el('button',{innerText:'New', style:'cursor:pointer;padding:6px 12px;background:#2a5a2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;font-size:12px;', type:'button'});
-templateControls.appendChild(btnNewTemplate);
-
-var btnDeleteTemplate = el('button',{innerText:'Delete', style:'cursor:pointer;padding:6px 12px;background:#5a2a2a;color:#fff;border:1px solid #7a3a3a;border-radius:4px;font-size:12px;', type:'button'});
-templateControls.appendChild(btnDeleteTemplate);
-
-// Template editor (inline) - ultra-compact version with one line per mode
-var templateEditor = el('div',{style:'display:none;margin-top:6px;padding:6px;background:#0a0a0a;border-radius:4px;border:1px solid #333;'});
-templatesContent.appendChild(templateEditor);
-
-// Add CSS to remove spinner arrows from number inputs
-var styleEl = document.createElement('style');
-styleEl.textContent = '#tw_open_tabs_ui input[type=number]::-webkit-inner-spin-button, #tw_open_tabs_ui input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; } #tw_open_tabs_ui input[type=number] { -moz-appearance: textfield; }';
-document.head.appendChild(styleEl);
-
-// Unit labels row (above both send and keep)
-var labelsRow = el('div',{style:'display:flex;align-items:center;gap:6px;margin-bottom:3px;padding-left:9px;'});
-templateEditor.appendChild(labelsRow);
-
-// Add spacers to match the radio button and "Send:"/"Keep:" label width
-var radioSpacer = el('span',{style:'width:15px;flex-shrink:0;'}); // Match radio button width
-var labelSpacer = el('span',{style:'width:45px;flex-shrink:0;'}); // Match "Send:"/"Keep:" label width
-labelsRow.appendChild(radioSpacer);
-labelsRow.appendChild(labelSpacer);
-
-for(var i=0;i<UNIT_TYPES.length;i++){
-var unitType = UNIT_TYPES[i];
-var unitLabel = el('span',{style:'color:#888;font-size:9px;white-space:nowrap;width:50px;min-width:50px;text-align:center;display:block;flex-shrink:0;'});
-var abbrev = UNIT_NAMES[unitType];
-// Custom abbreviations
-if(unitType === 'spear') abbrev = 'Spear';
-else if(unitType === 'sword') abbrev = 'Sword';
-else if(unitType === 'axe') abbrev = 'Axe';
-else if(unitType === 'archer') abbrev = 'Archer';
-else if(unitType === 'spy') abbrev = 'Scout';
-else if(unitType === 'light') abbrev = 'LC';
-else if(unitType === 'marcher') abbrev = 'MA';
-else if(unitType === 'heavy') abbrev = 'HC';
-else if(unitType === 'ram') abbrev = 'Ram';
-else if(unitType === 'catapult') abbrev = 'Cata';
-else if(unitType === 'knight') abbrev = 'Pala';
-else if(unitType === 'snob') abbrev = 'Noble';
-unitLabel.textContent = abbrev;
-unitLabel.title = UNIT_NAMES[unitType];
-labelsRow.appendChild(unitLabel);
-}
-
-// Send mode row
-var sendModeRow = el('label',{style:'display:flex;align-items:center;gap:6px;margin-bottom:4px;padding:4px;background:#0f0f0f;border-radius:3px;cursor:pointer;'});
-templateEditor.appendChild(sendModeRow);
-
-var sendModeRadio = el('input',{type:'radio', name:'template_mode', value:'send', style:'cursor:pointer;flex-shrink:0;'});
-var sendModeText = el('span',{innerText:'Send:', style:'color:#bbb;font-size:11px;min-width:45px;flex-shrink:0;'});
-sendModeRow.appendChild(sendModeRadio);
-sendModeRow.appendChild(sendModeText);
-
-// Keep mode row
-var keepModeRow = el('label',{style:'display:flex;align-items:center;gap:6px;padding:4px;background:#0f0f0f;border-radius:3px;cursor:pointer;'});
-templateEditor.appendChild(keepModeRow);
-
-var keepModeRadio = el('input',{type:'radio', name:'template_mode', value:'keep', style:'cursor:pointer;flex-shrink:0;'});
-var keepModeText = el('span',{innerText:'Keep:', style:'color:#bbb;font-size:11px;min-width:45px;flex-shrink:0;'});
-keepModeRow.appendChild(keepModeRadio);
-keepModeRow.appendChild(keepModeText);
-
-var unitInputs = {};
-var keepUnitInputs = {};
-
-for(var i=0;i<UNIT_TYPES.length;i++){
-var unitType = UNIT_TYPES[i];
-
-// Create for Send row
-var sendUnitInput = el('input',{type:'number', min:'0', value:'', placeholder:'0', style:'width:50px;min-width:50px;padding:3px 4px;background:#1a1a1a;color:#fff;border:1px solid #444;border-radius:2px;box-sizing:border-box;font-size:11px;text-align:center;flex-shrink:0;'});
-unitInputs[unitType] = sendUnitInput;
-sendModeRow.appendChild(sendUnitInput);
-
-// Create for Keep row
-var keepUnitInput = el('input',{type:'number', min:'0', value:'', placeholder:'0', style:'width:50px;min-width:50px;padding:3px 4px;background:#1a1a1a;color:#fff;border:1px solid #444;border-radius:2px;box-sizing:border-box;font-size:11px;text-align:center;flex-shrink:0;'});
-keepUnitInputs[unitType] = keepUnitInput;
-keepModeRow.appendChild(keepUnitInput);
-}
-
-// Auto-save on input change
-for(var unitType in unitInputs){
-(function(ut){
-unitInputs[ut].addEventListener('input', function(){
-if(currentTemplate) saveCurrentTemplate();
-});
-keepUnitInputs[ut].addEventListener('input', function(){
-if(currentTemplate) saveCurrentTemplate();
-});
-})(unitType);
-}
-
-// Visual feedback for which mode is active
-sendModeRadio.addEventListener('change', function(){
-if(sendModeRadio.checked){
-sendModeRow.style.background = '#1a3a1a';
-keepModeRow.style.background = '#0f0f0f';
-if(currentTemplate) saveCurrentTemplate();
-}
-});
-keepModeRadio.addEventListener('change', function(){
-if(keepModeRadio.checked){
-keepModeRow.style.background = '#1a3a1a';
-sendModeRow.style.background = '#0f0f0f';
-if(currentTemplate) saveCurrentTemplate();
-}
-});
-
-body.appendChild(templatesSection);
-
-// Templates collapse handler
-templatesCollapseBtn.onclick = function(){
-if(templatesContent.style.display === 'none'){
-templatesContent.style.display = 'block';
-templatesCollapseBtn.innerText = '−';
-} else {
-templatesContent.style.display = 'none';
-templatesCollapseBtn.innerText = '+';
-}
-};
-
-// Rally Point Opener section with FROM/TO coordinates
-var rallySection = el('div',{style:'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;position:relative;'});
-var rallySectionHeader = el('div',{style:'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'});
-var rallySectionTitle = el('div',{style:'font-weight:bold;color:#aaa;text-align:center;font-size:13px;flex:1;'});
-rallySectionTitle.textContent = 'Rally Point Opener';
-var rallyCollapseBtn = el('button',{innerText:'−', style:'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;', type:'button'});
-var rallyHelpBtn = el('button',{innerText:'?', type:'button', title:'Help', style:'cursor:pointer;padding:2px 7px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:3px;font-size:13px;font-weight:bold;line-height:1;margin-left:4px;'});
-rallySectionHeader.appendChild(rallySectionTitle);
-rallySectionHeader.appendChild(rallyCollapseBtn);
-rallySectionHeader.appendChild(rallyHelpBtn);
-rallySection.appendChild(rallySectionHeader);
-
-var rallyContent = el('div',{style:'display:block;'});
-rallySection.appendChild(rallyContent);
-
-// Use current group checkbox (top left)
-var useGroupWrapper = el('label',{style:'position:absolute;top:8px;left:8px;display:flex;align-items:center;gap:6px;color:#bbb;font-size:11px;cursor:pointer;'});
-var useGroupCheckbox = el('input',{type:'checkbox', style:'cursor:pointer;'});
-var useGroupLabel = el('span',{innerText:'Use current group'});
-useGroupWrapper.appendChild(useGroupCheckbox);
-useGroupWrapper.appendChild(useGroupLabel);
-rallySectionHeader.appendChild(useGroupWrapper);
-
-var btnTestData = el('button',{innerText:'Test', title:'Load Test Data', style:'position:absolute;top:8px;right:40px;cursor:pointer;padding:4px 8px;background:#2a4a5a;color:#fff;border:1px solid #3a6a7a;border-radius:3px;font-size:11px;', type:'button'});
-rallySectionHeader.appendChild(btnTestData);
-
-var columnsWrapper = el('div',{style:'display:flex;gap:12px;margin-bottom:12px;'});
-rallyContent.appendChild(columnsWrapper);
-
-var fromColumn = el('div',{style:'flex:1;display:flex;flex-direction:column;position:relative;'});
-var toColumn = el('div',{style:'flex:1;display:flex;flex-direction:column;'});
-
-var fromLabel = el('div',{style:'font-weight:bold;margin-bottom:6px;color:#aaa;text-align:center;font-size:14px;'});
-fromLabel.textContent = 'FROM Coordinates';
-
-var fromTextarea = el('textarea',{rows:8, style:'width:100%;box-sizing:border-box;background:#0f0f0f;color:#fff;border:1px solid #444;padding:8px;border-radius:4px;resize:vertical;font-family:monospace;', placeholder:'111|222\n222|111\n223|111'});
-
-// Overlay for "Using current group"
-var fromOverlay = el('div',{style:'position:absolute;top:30px;left:0;right:0;bottom:0;background:rgba(15,15,15,0.95);border:1px solid #444;border-radius:4px;display:none;align-items:center;justify-content:center;color:#4a9eff;font-weight:bold;font-size:14px;pointer-events:none;'});
-fromOverlay.textContent = 'Using current group';
-
-fromColumn.appendChild(fromLabel);
-fromColumn.appendChild(fromTextarea);
-fromColumn.appendChild(fromOverlay);
-
-var toLabel = el('div',{style:'font-weight:bold;margin-bottom:6px;color:#aaa;text-align:center;font-size:14px;'});
-toLabel.textContent = 'TO Coordinates';
-var toTextarea = el('textarea',{rows:8, style:'width:100%;box-sizing:border-box;background:#0f0f0f;color:#fff;border:1px solid #444;padding:8px;border-radius:4px;resize:vertical;font-family:monospace;', placeholder:'123|234\n112|223\n112|224'});
-
-fromColumn.appendChild(fromLabel);
-fromColumn.appendChild(fromTextarea);
-toColumn.appendChild(toLabel);
-toColumn.appendChild(toTextarea);
-
-columnsWrapper.appendChild(fromColumn);
-columnsWrapper.appendChild(toColumn);
-
-// Handle "Use current group" checkbox
-useGroupCheckbox.addEventListener('change', function(){
-if(useGroupCheckbox.checked){
-fromTextarea.disabled = true;
-fromTextarea.style.opacity = '0.5';
-fromOverlay.style.display = 'flex';
-} else {
-fromTextarea.disabled = false;
-fromTextarea.style.opacity = '1';
-fromOverlay.style.display = 'none';
-}
-});
-
-// Search fields for From and To
-var searchWrapper = el('div',{style:'display:flex;gap:12px;margin-bottom:12px;'});
-rallyContent.appendChild(searchWrapper);
-
-var fromSearchWrap = el('div',{style:'flex:1;display:flex;flex-direction:column;gap:4px;'});
-var fromSearchLabel = el('div',{style:'font-size:11px;color:#888;'});
-fromSearchLabel.textContent = 'Search FROM:';
-var fromSearchInput = el('input',{placeholder:'Search coords or names', style:'width:100%;padding:6px;background:#0f0f0f;color:#fff;border:1px solid #444;border-radius:4px;box-sizing:border-box;'});
-var fromSearchResults = el('div',{style:'position:relative;'});
-var fromDropdown = el('div',{style:'position:absolute;left:0;right:0;max-height:200px;overflow:auto;background:#1a1a1a;border:1px solid #444;border-radius:4px;padding:4px;display:none;z-index:100000;'});
-fromSearchResults.appendChild(fromDropdown);
-fromSearchWrap.appendChild(fromSearchLabel);
-fromSearchWrap.appendChild(fromSearchInput);
-fromSearchWrap.appendChild(fromSearchResults);
-
-var toSearchWrap = el('div',{style:'flex:1;display:flex;flex-direction:column;gap:4px;'});
-var toSearchLabel = el('div',{style:'font-size:11px;color:#888;'});
-toSearchLabel.textContent = 'Search TO:';
-var toSearchInput = el('input',{placeholder:'Search coords or names', style:'width:100%;padding:6px;background:#0f0f0f;color:#fff;border:1px solid #444;border-radius:4px;box-sizing:border-box;'});
-var toSearchResults = el('div',{style:'position:relative;'});
-var toDropdown = el('div',{style:'position:absolute;left:0;right:0;max-height:200px;overflow:auto;background:#1a1a1a;border:1px solid #444;border-radius:4px;padding:4px;display:none;z-index:100000;'});
-toSearchResults.appendChild(toDropdown);
-toSearchWrap.appendChild(toSearchLabel);
-toSearchWrap.appendChild(toSearchInput);
-toSearchWrap.appendChild(toSearchResults);
-
-searchWrapper.appendChild(fromSearchWrap);
-searchWrapper.appendChild(toSearchWrap);
-
-// Open Tabs button centered below search
-var openTabsRow = el('div',{style:'display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap;'});
-
-var fakeModeWrapper = el('label',{style:'display:flex;align-items:center;gap:6px;color:#bbb;font-size:12px;cursor:pointer;'});
-var fakeModeCheckbox = el('input',{type:'checkbox', style:'cursor:pointer;'});
-var fakeModeLabel = el('span',{innerText:'Fake Mode (limit by available units)'});
-fakeModeWrapper.appendChild(fakeModeCheckbox);
-fakeModeWrapper.appendChild(fakeModeLabel);
-
-var btnOpenTabs = el('button',{innerText:'Open Tabs', style:'cursor:pointer;padding:10px 24px;background:#2a5a2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;font-weight:bold;font-size:14px;', type:'button'});
-
-openTabsRow.appendChild(fakeModeWrapper);
-openTabsRow.appendChild(btnOpenTabs);
-rallyContent.appendChild(openTabsRow);
-
-body.appendChild(rallySection);
-
-// Rally collapse handler
-rallyCollapseBtn.onclick = function(){
-if(rallyContent.style.display === 'none'){
-rallyContent.style.display = 'block';
-rallyCollapseBtn.innerText = '−';
-} else {
-rallyContent.style.display = 'none';
-rallyCollapseBtn.innerText = '+';
-}
-};
-
-// Attack Plan section
-var attackPlanSection = el('div',{style:'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;'});
-var attackPlanHeader = el('div',{style:'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'});
-var attackPlanTitle = el('div',{style:'font-weight:bold;color:#aaa;text-align:center;font-size:13px;flex:1;'});
-attackPlanTitle.textContent = 'Attack Plans';
-var attackPlanCollapseBtn = el('button',{innerText:'−', style:'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;', type:'button'});
-var attackPlanHelpBtn = el('button',{innerText:'?', type:'button', title:'Help', style:'cursor:pointer;padding:2px 7px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:3px;font-size:13px;font-weight:bold;line-height:1;margin-left:4px;'});
-attackPlanHeader.appendChild(attackPlanTitle);
-attackPlanHeader.appendChild(attackPlanCollapseBtn);
-attackPlanHeader.appendChild(attackPlanHelpBtn);
-attackPlanSection.appendChild(attackPlanHeader);
-
-var attackPlanContent = el('div',{style:'display:block;'});
-attackPlanSection.appendChild(attackPlanContent);
-
-var attackPlanRow = el('div',{style:'display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:8px;'});
-attackPlanContent.appendChild(attackPlanRow);
-
-body.appendChild(attackPlanSection);
-
-var btnPasteAttackPlan = el('button',{innerText:'Paste Attack Plan', style:'cursor:pointer;padding:8px 16px;background:#5a3a2a;color:#fff;border:1px solid #7a5a3a;border-radius:4px;', type:'button'});
-attackPlanRow.appendChild(btnPasteAttackPlan);
-
-var attackPlanContainer = el('div',{id:'attack_plan_groups', style:'display:none;margin-top:8px;'});
-attackPlanContent.appendChild(attackPlanContainer);
-
-// Attack Plan collapse handler
-attackPlanCollapseBtn.onclick = function(){
-if(attackPlanContent.style.display === 'none'){
-attackPlanContent.style.display = 'block';
-attackPlanCollapseBtn.innerText = '−';
-} else {
-attackPlanContent.style.display = 'none';
-attackPlanCollapseBtn.innerText = '+';
-}
-};
-
-msgBox = el('div',{style:'margin-bottom:12px;color:#9f9f9f;min-height:18px;text-align:center;padding:6px;background:#0a0a0a;border-radius:4px;border:1px solid #2a2a2a;cursor:pointer;', title:'Click to view message history'});
-msgBox.addEventListener('click', function(){
-msgHistoryList.innerHTML = '';
-if(messageHistory.length === 0){
-msgHistoryList.innerHTML = '<div style="color:#888;padding:8px;">No messages yet</div>';
-} else {
-for(var _i=messageHistory.length-1;_i>=0;_i--){
-var _e = messageHistory[_i];
-var _row = el('div',{style:'padding:6px 4px;border-bottom:1px solid #2a2a2a;font-size:12px;'});
-var _t = _e.time;
-var _ts = ('0'+_t.getHours()).slice(-2)+':'+('0'+_t.getMinutes()).slice(-2)+':'+('0'+_t.getSeconds()).slice(-2);
-_row.innerHTML = '<span style="color:#555;margin-right:8px;">'+_ts+'</span><span style="color:#ddd;">'+_e.text+'</span>';
-msgHistoryList.appendChild(_row);
-}
-}
-msgHistoryOverlay.style.display = 'flex';
-});
-body.appendChild(msgBox);
-
-var footer = el('div',{style:'padding:12px;background:linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);border-bottom-left-radius:6px;border-bottom-right-radius:6px;border-top:2px solid #444;text-align:center;'});
-var author = el('div',{style:'font-size:12px;color:#888;text-shadow:1px 1px 2px rgba(0,0,0,0.6);letter-spacing:0.5px;'});
-author.textContent = 'Created by NeilB';
-footer.appendChild(author);
-container.appendChild(footer);
-
-document.body.appendChild(container);
-
-// Help overlay
-var helpOverlay = el('div',{style:'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:200000;display:none;align-items:center;justify-content:center;'});
-var helpContent = el('div',{style:'background:#1a1a1a;color:#fff;padding:24px;border-radius:8px;border:2px solid #444;max-width:480px;width:90%;'});
-var helpTitle = el('div',{style:'font-size:16px;font-weight:bold;margin-bottom:12px;color:#e0e0e0;'});
-var helpText = el('div',{style:'font-size:13px;color:#bbb;line-height:1.7;margin-bottom:16px;'});
-var helpCloseRow = el('div',{style:'display:flex;justify-content:center;'});
-var helpCloseBtn = el('button',{innerText:'Close', type:'button', style:'cursor:pointer;padding:8px 24px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;'});
-helpCloseRow.appendChild(helpCloseBtn);
-helpContent.appendChild(helpTitle);
-helpContent.appendChild(helpText);
-helpContent.appendChild(helpCloseRow);
-helpOverlay.appendChild(helpContent);
-document.body.appendChild(helpOverlay);
-helpCloseBtn.addEventListener('click', function(){ helpOverlay.style.display = 'none'; });
-helpOverlay.addEventListener('click', function(e){ if(e.target === helpOverlay) helpOverlay.style.display = 'none'; });
-function showHelp(t, html){ helpTitle.textContent = t; helpText.innerHTML = html; helpOverlay.style.display = 'flex'; }
-
-templatesHelpBtn.addEventListener('click', function(e){
-e.stopPropagation();
-showHelp('Unit Templates',
-'Define unit compositions to auto-fill when opening rally tabs.<br><br>' +
-'<b>Send mode:</b> sends exactly the number specified per attack.<br>' +
-'<b>Keep mode:</b> keeps that many troops home and sends the rest.<br><br>' +
-'Select a template before clicking <i>Open Tabs</i> to apply it. Enable <i>Fake Mode</i> to automatically skip attacks where a village lacks sufficient units.');
-});
-rallyHelpBtn.addEventListener('click', function(e){
-e.stopPropagation();
-showHelp('Rally Point Opener',
-'Enter FROM and TO coordinates — one pair per line — then click <i>Open Tabs</i> to open a rally point tab for each pair.<br><br>' +
-'Use the search fields to find villages by name or coordinate and append them to the list.<br><br>' +
-'Enable <i>Use current group</i> to automatically use your currently selected in-game village group as the FROM list.');
-});
-attackPlanHelpBtn.addEventListener('click', function(e){
-e.stopPropagation();
-showHelp('Attack Plans',
-'Paste a formatted attack plan to generate one button per attack wave.<br><br>' +
-'Clicking a wave button opens all attacks in that wave as rally point tabs.<br><br>' +
-'If a launch time is included in the plan, a live countdown is shown on the button.');
-});
-btnGlobalHelp.addEventListener('click', function(e){
-e.stopPropagation();
-showHelp('Rally Opener — Overview',
-'<b>Purpose</b><br>' +
-'Opens rally point tabs for multiple village pairs at once, letting you queue up attacks or fakes quickly without navigating manually.<br><br>' +
-'<b>How to use</b><br>' +
-'1. Optionally select or create a unit template to pre-fill troop counts.<br>' +
-'2. Enter FROM and TO coordinates (one pair per line), or paste an attack plan.<br>' +
-'3. Click <i>Open Tabs</i> or a wave button to open all rally points at once.<br><br>' +
-'Village data is fetched automatically from the game server and refreshed every hour.<br><br>' +
-'<b>Premium requirements</b><br>' +
-'No Premium is required for the core functionality. The following features require <b>Account Manager</b>:<br>' +
-'— Unit templates (reads available units from the Combined Village Overview)<br>' +
-'— Fake Mode (checks unit availability per village)<br>' +
-'— Use current group (reads your active village group from the Combined Overview)<br><br>' +
-'<b>Popups blocked?</b><br>' +
-'After clicking Open Tabs, look for the popup blocked icon in your browser\'s address bar, click it, and choose <i>Always allow popups from this site</i>. Then try again.');
-});
-
-// Grey out Account Manager features when unavailable
-if(!hasAccountManager){
-var _amDisableStyle = 'opacity:0.35;pointer-events:none;';
-templatesSection.style.cssText += _amDisableStyle;
-templatesSection.title = 'Requires Account Manager';
-fakeModeWrapper.style.cssText += _amDisableStyle;
-fakeModeWrapper.title = 'Requires Account Manager';
-useGroupWrapper.style.cssText += _amDisableStyle;
-useGroupWrapper.title = 'Requires Account Manager';
-}
-
-// Message history overlay
-var msgHistoryOverlay = el('div',{style:'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:200000;display:none;align-items:center;justify-content:center;'});
-var msgHistoryContent = el('div',{style:'background:#1a1a1a;color:#fff;padding:20px;border-radius:8px;border:2px solid #444;max-width:480px;width:90%;max-height:60vh;display:flex;flex-direction:column;'});
-var msgHistoryTitle = el('div',{style:'font-size:16px;font-weight:bold;margin-bottom:12px;color:#e0e0e0;flex-shrink:0;'});
-msgHistoryTitle.textContent = 'Message History';
-var msgHistoryList = el('div',{style:'overflow-y:auto;flex:1;'});
-var msgHistoryCloseRow = el('div',{style:'display:flex;justify-content:center;margin-top:12px;flex-shrink:0;'});
-var msgHistoryCloseBtn = el('button',{innerText:'Close', type:'button', style:'cursor:pointer;padding:8px 24px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;'});
-msgHistoryCloseRow.appendChild(msgHistoryCloseBtn);
-msgHistoryContent.appendChild(msgHistoryTitle);
-msgHistoryContent.appendChild(msgHistoryList);
-msgHistoryContent.appendChild(msgHistoryCloseRow);
-msgHistoryOverlay.appendChild(msgHistoryContent);
-document.body.appendChild(msgHistoryOverlay);
-msgHistoryCloseBtn.addEventListener('click', function(){ msgHistoryOverlay.style.display = 'none'; });
-msgHistoryOverlay.addEventListener('click', function(e){ if(e.target === msgHistoryOverlay) msgHistoryOverlay.style.display = 'none'; });
-
-// Make draggable - title bar and body (excluding interactive elements)
-(function(){
-var isDragging = false;
-var startX = 0;
-var startY = 0;
-var initialLeft = 0;
-var initialTop = 0;
-
-function startDrag(e) {
-e = e || window.event;
-var target = e.target || e.srcElement;
-// Don't drag if clicking on buttons, inputs, textareas, selects, or labels
-if(target === closeBtn) return;
-if(target.tagName === 'BUTTON' || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.tagName === 'LABEL') return;
-// Don't drag if clicking inside sections with interactive content
-if(target.closest && (target.closest('input') || target.closest('textarea') || target.closest('button') || target.closest('select') || target.closest('label'))) return;
-e.preventDefault();
-isDragging = true;
-startX = e.clientX;
-startY = e.clientY;
-var rect = container.getBoundingClientRect();
-initialLeft = rect.left;
-initialTop = rect.top;
-document.onmousemove = onMouseMove;
-document.onmouseup = onMouseUp;
-}
-
-titleBar.onmousedown = startDrag;
-body.onmousedown = startDrag;
-
-function onMouseMove(e) {
-if(!isDragging) return;
-e = e || window.event;
-e.preventDefault();
-var deltaX = e.clientX - startX;
-var deltaY = e.clientY - startY;
-var newLeft = initialLeft + deltaX;
-var newTop = initialTop + deltaY;
-// Keep window visible - prevent dragging completely off screen
-var minVisible = 50; // pixels
-var maxLeft = window.innerWidth - minVisible;
-var maxTop = window.innerHeight - minVisible;
-newLeft = Math.max(-container.offsetWidth + minVisible, Math.min(newLeft, maxLeft));
-newTop = Math.max(0, Math.min(newTop, maxTop));
-container.style.left = newLeft + 'px';
-container.style.top = newTop + 'px';
-container.style.transform = 'none';
-}
-
-function onMouseUp() {
-isDragging = false;
-document.onmousemove = null;
-document.onmouseup = null;
-}
+(function () {
+
+  /* ── Feature Detection ── */
+
+  const hasAccountManager = typeof game_data !== 'undefined'
+    && game_data.features && game_data.features.AccountManager
+    && game_data.features.AccountManager.active === true;
+
+  const isOverviewPage = window.location.href.indexOf('screen=overview_villages') !== -1
+    && window.location.href.indexOf('mode=combined') !== -1;
+
+  if (!isOverviewPage && hasAccountManager) {
+    if (confirm('Some features require the Combined Village Overview page (Account Manager).\n\nWould you like to be redirected there now?')) {
+      try {
+        window.location.href = window.location.origin + window.location.pathname + '?screen=overview_villages&mode=combined';
+      } catch (e) {
+        alert('Could not redirect. Please navigate to:\nOverview → Combined → Village Overview');
+      }
+      return;
+    }
+  }
+
+  /* ── Constants ── */
+
+  const UNIT_TYPES = ['spear','sword','axe','archer','spy','light','marcher','heavy','ram','catapult','knight','snob'];
+  const UNIT_NAMES = {
+    spear: 'Spear', sword: 'Sword', axe: 'Axe', archer: 'Archer',
+    spy: 'Scout', light: 'LC', marcher: 'MA', heavy: 'HC',
+    ram: 'Ram', catapult: 'Cata', knight: 'Pala', snob: 'Noble'
+  };
+  const POPUP_BLOCKED_HTML =
+    'Your browser is blocking Rally Opener from opening tabs.<br><br>' +
+    '<b>To fix:</b><br>' +
+    '1. Look for the popup blocked icon in your browser\'s address bar (usually on the right).<br>' +
+    '2. Click it and select <i>Always allow popups from this site</i>.<br>' +
+    '3. Click <i>Open Tabs</i> again.';
+
+  /* ── Utilities ── */
+
+  function el(tag, opts) {
+    const e = document.createElement(tag);
+    if (opts) Object.keys(opts).forEach(k => { e[k] = opts[k]; });
+    return e;
+  }
+
+  function saveVillagesText(txt) {
+    try {
+      localStorage.setItem('tw_villages_txt', txt);
+      localStorage.setItem('tw_villages_updated', String(Date.now()));
+    } catch (e) {}
+  }
+
+  function loadVillagesText() {
+    try { return localStorage.getItem('tw_villages_txt') || null; } catch (e) { return null; }
+  }
+
+  function parseVillagesTxt(txt) {
+    if (!txt) return [];
+    return txt.split(/\r?\n/).reduce((out, L) => {
+      if (!L || !L.trim()) return out;
+      const parts = L.split(',');
+      if (parts.length < 4) return out;
+      const id = parts[0];
+      let name = (parts[1] || '').replace(/\+/g, ' ');
+      try { name = decodeURIComponent(name); } catch (e) {}
+      const x = parts[2] ? Number(parts[2]) : null;
+      const y = parts[3] ? Number(parts[3]) : null;
+      if (id && x != null && y != null) out.push({ id, name, x, y });
+      return out;
+    }, []);
+  }
+
+  function coordKey(x, y) { return x + '|' + y; }
+
+  function buildCoordIndex(arr) {
+    const m = new Map();
+    arr.forEach(v => m.set(coordKey(v.x, v.y), v));
+    return m;
+  }
+
+  function tryFetchVillagesFromServer() {
+    return fetch(location.origin + '/map/village.txt').then(r => {
+      if (!r.ok) throw new Error('Failed to fetch village.txt');
+      return r.text();
+    });
+  }
+
+  function parseCoordinateList(text) {
+    if (!text) return [];
+    return text.trim().split(/\r?\n/)
+      .map(l => l.trim().replace(',', '|'))
+      .filter(l => /\d+\|\d+/.test(l));
+  }
+
+  function coordToVillageId(coord) {
+    if (!coord) return null;
+    const m = coord.match(/(\d+)\|(\d+)/);
+    if (!m) return null;
+    const v = villagesIndex.get(coordKey(Number(m[1]), Number(m[2])));
+    return v ? v.id : null;
+  }
+
+  function buildRallyUrl(forVillageId, targetVillageId) {
+    try {
+      const url = new URL(window.location.origin + window.location.pathname);
+      url.searchParams.set('screen', 'place');
+      url.searchParams.set('village', forVillageId);
+      url.searchParams.set('target', targetVillageId);
+      return url.toString();
+    } catch (e) {
+      return location.origin + '/game.php?village=' + forVillageId + '&screen=place&target=' + targetVillageId;
+    }
+  }
+
+  /* ── Server Time ── */
+
+  function getServerTime() {
+    try {
+      const timeEl = document.getElementById('serverTime');
+      const dateEl = document.getElementById('serverDate');
+      if (timeEl && dateEl) {
+        const tm = timeEl.textContent.trim().match(/(\d{2}):(\d{2}):(\d{2})/);
+        const dm = dateEl.textContent.trim().match(/(\d{2})\/(\d{2})\/(\d{4})/);
+        if (tm && dm) return new Date(+dm[3], +dm[2] - 1, +dm[1], +tm[1], +tm[2], +tm[3]);
+      }
+    } catch (e) {}
+    return new Date();
+  }
+
+  const serverTimeOffset = (() => {
+    try {
+      const diff = getServerTime().getTime() - Date.now();
+      return Math.round(diff / 3600000) * 3600000;
+    } catch (e) { return 0; }
+  })();
+
+  function getCurrentServerTime() {
+    return new Date(Date.now() + serverTimeOffset);
+  }
+
+  /* ── Message System ── */
+
+  let msgBox;
+  const messageHistory = [];
+
+  function showMessage(msg, timeout) {
+    messageHistory.push({ text: msg, time: new Date() });
+    if (!msgBox) return;
+    msgBox.textContent = msg;
+    if (msgBox._t) clearTimeout(msgBox._t);
+    msgBox._t = setTimeout(() => { msgBox.textContent = ''; }, timeout || 3000);
+  }
+
+  /* ── UI Helpers ── */
+
+  let helpOverlay, helpTitle, helpText;
+
+  function showHelp(title, html) {
+    helpTitle.textContent = title;
+    helpText.innerHTML = html;
+    helpOverlay.style.display = 'flex';
+  }
+
+  function makeCollapseHandler(contentEl, btn) {
+    return function () {
+      const collapsed = contentEl.style.display === 'none';
+      contentEl.style.display = collapsed ? 'block' : 'none';
+      btn.innerText = collapsed ? '−' : '+';
+    };
+  }
+
+  function openUrls(urls) {
+    let blocked = false;
+    urls.forEach((url, idx) => {
+      setTimeout(() => {
+        const w = window.open(url, '_blank');
+        if ((!w || w.closed) && !blocked) {
+          blocked = true;
+          showHelp('Popups Blocked', POPUP_BLOCKED_HTML);
+        }
+      }, 200 * idx);
+    });
+  }
+
+  /* ── Village Data ── */
+
+  let villagesArr = parseVillagesTxt(loadVillagesText());
+  let villagesIndex = buildCoordIndex(villagesArr);
+
+  (function autoFetchVillages() {
+    try {
+      const lastFetch = localStorage.getItem('tw_villages_updated');
+      const needsFetch = !lastFetch || (Date.now() - Number(lastFetch)) > 3600000;
+      if (!needsFetch) return;
+      tryFetchVillagesFromServer().then(txt => {
+        if (!txt) throw new Error('Empty');
+        saveVillagesText(txt);
+        villagesArr = parseVillagesTxt(txt);
+        villagesIndex = buildCoordIndex(villagesArr);
+        showMessage('Village data updated (' + villagesArr.length + ' villages)');
+      }).catch(() => {
+        if (!lastFetch) showMessage('Could not load village data');
+      });
+    } catch (e) {
+      console.error('Auto-fetch error:', e);
+    }
+  })();
+
+  /* ── Template System ── */
+
+  let unitTemplates = {};
+  let currentTemplate = null;
+
+  function loadTemplates() {
+    try {
+      const saved = localStorage.getItem('tw_unit_templates');
+      if (saved) unitTemplates = JSON.parse(saved);
+    } catch (e) { console.error('Error loading templates:', e); }
+  }
+
+  function saveTemplates() {
+    try {
+      localStorage.setItem('tw_unit_templates', JSON.stringify(unitTemplates));
+    } catch (e) { console.error('Error saving templates:', e); }
+  }
+
+  /* ── Unit Calculations ── */
+
+  function getVillageUnitsFromOverview(villageId) {
+    const units = {};
+    try {
+      const table = document.getElementById('combined_table');
+      if (!table) return units;
+      const rows = table.querySelectorAll('tr');
+      for (const row of rows) {
+        const span = row.querySelector('span.quickedit-vn[data-id="' + villageId + '"]');
+        if (!span) continue;
+        row.querySelectorAll('td.unit-item').forEach((cell, j) => {
+          if (j < UNIT_TYPES.length) units[UNIT_TYPES[j]] = parseInt(cell.textContent.trim()) || 0;
+        });
+        break;
+      }
+    } catch (e) { console.error('Error reading units:', e); }
+    return units;
+  }
+
+  function calculateUnitsToSend(availableUnits, template) {
+    const unitsToSend = {};
+    const { mode, units: config } = template;
+    for (const unitType in availableUnits) {
+      const available = availableUnits[unitType] || 0;
+      const tplValue = config[unitType] || 0;
+      const toSend = mode === 'send'
+        ? Math.min(tplValue, available)
+        : Math.max(0, available - tplValue);
+      if (toSend > 0) unitsToSend[unitType] = toSend;
+    }
+    return unitsToSend;
+  }
+
+  function calculateMaxAttacks(availableUnits, template) {
+    if (!template || !template.units) return 0;
+    const { mode, units: config } = template;
+    let max = Infinity;
+    for (const unitType in config) {
+      const required = config[unitType];
+      if (!required) continue;
+      const available = availableUnits[unitType] || 0;
+      const possible = mode === 'send'
+        ? Math.floor(available / required)
+        : (Math.max(0, available - required) > 0 ? Infinity : 0);
+      max = Math.min(max, possible);
+    }
+    return max === Infinity ? 0 : max;
+  }
+
+  function buildRallyUrlWithTemplate(forVillageId, targetVillageId) {
+    const baseUrl = buildRallyUrl(forVillageId, targetVillageId);
+    if (!currentTemplate || !unitTemplates[currentTemplate]) return baseUrl;
+    const available = getVillageUnitsFromOverview(forVillageId);
+    const toSend = calculateUnitsToSend(available, unitTemplates[currentTemplate]);
+    try {
+      const url = new URL(baseUrl);
+      Object.keys(toSend).forEach(u => url.searchParams.set(u, toSend[u]));
+      return url.toString();
+    } catch (e) {
+      const params = Object.keys(toSend).map(u => u + '=' + toSend[u]).join('&');
+      return baseUrl + (baseUrl.indexOf('?') > -1 ? '&' : '?') + params;
+    }
+  }
+
+  function getVillagesFromCurrentGroup() {
+    const villages = [];
+    try {
+      const table = document.getElementById('combined_table');
+      if (!table) return villages;
+      table.querySelectorAll('tr').forEach(row => {
+        const span = row.querySelector('span.quickedit-vn[data-id]');
+        if (!span) return;
+        const m = span.textContent.trim().match(/\((\d+)\|(\d+)\)/);
+        if (m) villages.push({ id: span.getAttribute('data-id'), coord: m[1] + '|' + m[2] });
+      });
+    } catch (e) { console.error('Error getting villages from group:', e); }
+    return villages;
+  }
+
+  function prepareTabsFromPairs(fromCoords, toCoords) {
+    const maxLen = Math.max(fromCoords.length, toCoords.length);
+    const pairs = [];
+    const failed = [];
+
+    for (let i = 0; i < maxLen; i++) {
+      const fromCoord = fromCoords[i] || null;
+      const toCoord   = toCoords[i]   || null;
+      if (!fromCoord || !toCoord) { failed.push('Row ' + (i+1) + ': missing From or To coordinate'); continue; }
+      const fromId = coordToVillageId(fromCoord);
+      const toId   = coordToVillageId(toCoord);
+      if (!fromId || !toId) { failed.push('Row ' + (i+1) + ': village not found for ' + fromCoord + ' -> ' + toCoord); continue; }
+      pairs.push({ fromId, toId, index: i + 1 });
+    }
+
+    if (!pairs.length) { showMessage('No valid pairs found - check your coordinates'); return []; }
+
+    const isFakeMode = fakeModeCheckbox.checked;
+    let noUnitDataDetected = false;
+
+    if (isFakeMode && currentTemplate && unitTemplates[currentTemplate]) {
+      const villageGroups = {};
+      pairs.forEach(p => {
+        if (!villageGroups[p.fromId]) villageGroups[p.fromId] = [];
+        villageGroups[p.fromId].push(p);
+      });
+
+      const finalPairs = [];
+      for (const villageId in villageGroups) {
+        const vPairs = villageGroups[villageId];
+        const available = getVillageUnitsFromOverview(villageId);
+        if (Object.keys(available).length === 0) noUnitDataDetected = true;
+        const maxAttacks = calculateMaxAttacks(available, unitTemplates[currentTemplate]);
+
+        if (maxAttacks >= vPairs.length) {
+          vPairs.forEach(p => finalPairs.push(p));
+        } else if (maxAttacks > 0) {
+          const shuffled = vPairs.slice().sort(() => Math.random() - 0.5);
+          shuffled.slice(0, maxAttacks).forEach(p => finalPairs.push(p));
+          shuffled.slice(maxAttacks).forEach(p => failed.push('Row ' + p.index + ': insufficient units (randomly skipped in Fake Mode)'));
+        } else {
+          const reason = noUnitDataDetected ? ': no unit data — open Combined Village Overview first' : ': insufficient units in village';
+          vPairs.forEach(p => failed.push('Row ' + p.index + reason));
+        }
+      }
+      pairs.length = 0;
+      finalPairs.forEach(p => pairs.push(p));
+    }
+
+    const urls = pairs.map(p => buildRallyUrlWithTemplate(p.fromId, p.toId));
+
+    if (!urls.length) {
+      if (noUnitDataDetected) {
+        showHelp('Unit Data Unavailable',
+          'Fake Mode needs unit counts from the Combined Village Overview, which requires the <b>Account Manager</b> Premium feature.<br><br>' +
+          'To fix:<br>' +
+          '1. Make sure you have Account Manager active.<br>' +
+          '2. Navigate to the Combined Village Overview page.<br>' +
+          '3. Run the script again from there.');
+      } else {
+        showMessage('No valid pairs found - check your coordinates and available units');
+      }
+      return [];
+    }
+
+    let msg = 'Prepared ' + urls.length + ' tab' + (urls.length > 1 ? 's' : '');
+    if (isFakeMode && failed.length) msg += ' (skipped ' + failed.length + ' due to unit limits)';
+    showMessage(msg + ' - ready to open!');
+    return urls;
+  }
+
+  /* ── Attack Plan ── */
+
+  let attackPlanGroups = {};
+
+  function parseLaunchTime(str) {
+    if (!str) return null;
+    const dmhms = str.match(/(\d{1,2})\/(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})/);
+    if (dmhms) {
+      const srv = getCurrentServerTime();
+      return new Date(srv.getFullYear(), +dmhms[2] - 1, +dmhms[1], +dmhms[3], +dmhms[4], +dmhms[5]);
+    }
+    if (/\d{4}-\d{2}-\d{2}/.test(str)) return new Date(str);
+    return null;
+  }
+
+  function parseAttackPlan(text) {
+    const groups = {};
+    text.split(/\r?\n/).forEach(line => {
+      line = line.trim();
+      if (!line || /^-+$/.test(line) || /Group.*From.*To/i.test(line)) return;
+      const parts = line.split(/\s{2,}|\t/);
+      if (parts.length < 3) return;
+      const groupNum    = parts[0].trim();
+      const fromVillage = parts[1].trim();
+      const toTarget    = parts[2].trim();
+      if (!/^\d+$/.test(groupNum) || !/\d+\|\d+/.test(fromVillage) || !/\d+\|\d+/.test(toTarget)) return;
+      const launchTime = parts.length >= 6 ? parseLaunchTime(parts[5].trim()) : null;
+      if (!groups[groupNum]) groups[groupNum] = { attacks: [], launchTime };
+      groups[groupNum].attacks.push({ from: fromVillage, to: toTarget });
+    });
+    return groups;
+  }
+
+  function parseHTMLAttackPlan(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const groups = {};
+    doc.querySelectorAll('table tbody tr').forEach(row => {
+      const cells = row.querySelectorAll('td');
+      if (cells.length < 3) return;
+      const groupNum    = cells[0].textContent.trim();
+      const fromVillage = cells[1].textContent.trim();
+      const toTarget    = cells[2].textContent.trim();
+      if (!/^\d+$/.test(groupNum) || !/\d+\|\d+/.test(fromVillage) || !/\d+\|\d+/.test(toTarget)) return;
+      const launchTime = cells.length >= 6 ? parseLaunchTime(cells[5].textContent.trim()) : null;
+      if (!groups[groupNum]) groups[groupNum] = { attacks: [], launchTime };
+      groups[groupNum].attacks.push({ from: fromVillage, to: toTarget });
+    });
+    return groups;
+  }
+
+  function openGroupAttacks(group) {
+    const urls = group.attacks.reduce((acc, atk) => {
+      const fromId = coordToVillageId(atk.from);
+      const toId   = coordToVillageId(atk.to);
+      if (fromId && toId) acc.push(buildRallyUrlWithTemplate(fromId, toId));
+      return acc;
+    }, []);
+    if (!urls.length) { showMessage('No valid attacks in this group'); return; }
+    showMessage('Opening ' + urls.length + ' tabs for group...');
+    openUrls(urls);
+  }
+
+  function startCountdowns() {
+    if (window._countdownInterval) clearInterval(window._countdownInterval);
+    window._countdownInterval = setInterval(() => {
+      document.querySelectorAll('.countdown').forEach(span => {
+        const btn = span.closest('.group-btn');
+        if (!btn) return;
+        const group = attackPlanGroups[btn.dataset.group];
+        if (!group || !group.launchTime) return;
+        const diff = group.launchTime - getCurrentServerTime();
+        if (diff <= 0) {
+          span.textContent = 'LAUNCH EXCEEDED';
+          span.style.color = '#ff4444';
+          span.style.fontWeight = 'bold';
+        } else {
+          const h = Math.floor(diff / 3600000);
+          const m = Math.floor((diff % 3600000) / 60000);
+          const s = Math.floor((diff % 60000) / 1000);
+          span.textContent = h + 'h ' + m + 'm ' + s + 's';
+          span.style.color = '#aaffaa';
+          span.style.fontWeight = '';
+        }
+      });
+    }, 1000);
+  }
+
+  function createGroupButtons() {
+    attackPlanContainer.innerHTML = '';
+    attackPlanContainer.style.display = 'block';
+    Object.keys(attackPlanGroups).sort((a, b) => +a - +b).forEach(groupNum => {
+      const group = attackPlanGroups[groupNum];
+      const btn = document.createElement('button');
+      btn.className = 'group-btn';
+      btn.dataset.group = groupNum;
+      btn.style.cssText = 'cursor:pointer;padding:10px 20px;background:#3a5a3a;color:#fff;border:1px solid #4a7a4a;border-radius:4px;font-weight:bold;margin:5px;display:inline-block;min-width:180px;';
+      const count = group.attacks.length;
+      btn.innerHTML = 'Group ' + groupNum + '<br><span style="font-size:11px;">(' + count + ' attack' + (count > 1 ? 's' : '') + ')</span>';
+      if (group.launchTime) {
+        const expired = group.launchTime <= getCurrentServerTime();
+        const span = document.createElement('span');
+        span.className = 'countdown';
+        span.style.cssText = 'font-size:10px;display:block;margin-top:4px;';
+        span.textContent = expired ? 'LAUNCH EXCEEDED' : 'Calculating...';
+        span.style.color = expired ? '#ff4444' : '#aaffaa';
+        if (expired) span.style.fontWeight = 'bold';
+        btn.append(document.createElement('br'), span);
+      }
+      btn.onclick = () => openGroupAttacks(group);
+      attackPlanContainer.appendChild(btn);
+    });
+    startCountdowns();
+  }
+
+  /* ── UI Build ── */
+
+  if (document.getElementById('tw_open_tabs_ui')) document.getElementById('tw_open_tabs_ui').remove();
+
+  const spinnerStyle = document.createElement('style');
+  spinnerStyle.textContent = '#tw_open_tabs_ui input[type=number]::-webkit-inner-spin-button,#tw_open_tabs_ui input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}#tw_open_tabs_ui input[type=number]{-moz-appearance:textfield}';
+  document.head.appendChild(spinnerStyle);
+
+  const container = el('div', { id: 'tw_open_tabs_ui', style: 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:99999;background:#1a1a1a;color:#fff;padding:0;border-radius:8px;font-family:Arial,Helvetica,sans-serif;font-size:13px;width:880px;box-shadow:0 8px 24px rgba(0,0,0,0.8);resize:both;overflow:auto;border:2px solid #333;' });
+
+  // Title Bar
+  const titleBar     = el('div', { style: 'cursor:move;padding:16px;background:linear-gradient(135deg,#2a2a2a 0%,#1a1a1a 100%);border-top-left-radius:6px;border-top-right-radius:6px;user-select:none;border-bottom:2px solid #444;position:relative;' });
+  const titleWrapper = el('div', { style: 'text-align:center;position:relative;' });
+  const titleEl      = el('div', { style: 'font-size:22px;font-weight:bold;color:#e0e0e0;text-shadow:2px 2px 4px rgba(0,0,0,0.6);letter-spacing:1px;' });
+  titleEl.textContent = 'RALLY OPENER';
+
+  const btnGlobalHelp = el('button', { innerText: '?', title: 'Help', type: 'button', style: 'position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 9px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:4px;font-size:14px;font-weight:bold;z-index:10;' });
+  const closeBtn      = el('button', { innerText: '✕', title: 'Close', style: 'position:absolute;right:0;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 10px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;font-size:16px;font-weight:bold;z-index:10;' });
+
+  titleBar.appendChild(btnGlobalHelp);
+  titleWrapper.appendChild(titleEl);
+  if (!hasAccountManager) {
+    const amWarning = el('div', { style: 'position:absolute;right:40px;top:50%;transform:translateY(-50%);font-size:11px;color:#ffaa00;white-space:nowrap;' });
+    amWarning.textContent = '⚠ Account Manager not active';
+    titleWrapper.appendChild(amWarning);
+  }
+  titleWrapper.appendChild(closeBtn);
+  titleBar.appendChild(titleWrapper);
+  container.appendChild(titleBar);
+
+  // Body
+  const body = el('div', { style: 'padding:16px;display:block;' });
+  container.appendChild(body);
+
+  // Unit Templates Section
+  const templatesSection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
+  const templatesSectionHeader = el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;' });
+  const templatesSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;flex:1;' });
+  templatesSectionTitle.textContent = 'Unit Templates';
+  const templatesCollapseBtn = el('button', { innerText: '−', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
+  const templatesHelpBtn     = el('button', { innerText: '?', type: 'button', title: 'Help', style: 'cursor:pointer;padding:2px 7px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:3px;font-size:13px;font-weight:bold;line-height:1;margin-left:4px;' });
+  templatesSectionHeader.append(templatesSectionTitle, templatesCollapseBtn, templatesHelpBtn);
+  templatesSection.appendChild(templatesSectionHeader);
+
+  const templatesContent = el('div', { style: 'display:block;' });
+  templatesSection.appendChild(templatesContent);
+
+  const templateControls = el('div', { style: 'display:flex;gap:8px;margin-bottom:8px;align-items:center;justify-content:center;flex-wrap:wrap;' });
+  templatesContent.appendChild(templateControls);
+
+  const templateSelect     = el('select', { style: 'padding:6px;background:#0f0f0f;color:#fff;border:1px solid #444;border-radius:4px;min-width:150px;' });
+  const btnNewTemplate     = el('button', { innerText: 'New',    type: 'button', style: 'cursor:pointer;padding:6px 12px;background:#2a5a2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;font-size:12px;' });
+  const btnDeleteTemplate  = el('button', { innerText: 'Delete', type: 'button', style: 'cursor:pointer;padding:6px 12px;background:#5a2a2a;color:#fff;border:1px solid #7a3a3a;border-radius:4px;font-size:12px;' });
+  templateSelect.appendChild(el('option', { value: '', innerText: '-- Select Template --' }));
+  templateControls.append(templateSelect, btnNewTemplate, btnDeleteTemplate);
+
+  const templateEditor = el('div', { style: 'display:none;margin-top:6px;padding:6px;background:#0a0a0a;border-radius:4px;border:1px solid #333;' });
+  templatesContent.appendChild(templateEditor);
+
+  // Unit label row
+  const labelsRow = el('div', { style: 'display:flex;align-items:center;gap:6px;margin-bottom:3px;padding-left:9px;' });
+  labelsRow.append(el('span', { style: 'width:15px;flex-shrink:0;' }), el('span', { style: 'width:45px;flex-shrink:0;' }));
+  UNIT_TYPES.forEach(u => {
+    const lbl = el('span', { style: 'color:#888;font-size:9px;white-space:nowrap;width:50px;min-width:50px;text-align:center;display:block;flex-shrink:0;' });
+    lbl.textContent = UNIT_NAMES[u];
+    lbl.title = u;
+    labelsRow.appendChild(lbl);
+  });
+  templateEditor.appendChild(labelsRow);
+
+  const inputStyle  = 'width:50px;min-width:50px;padding:3px 4px;background:#1a1a1a;color:#fff;border:1px solid #444;border-radius:2px;box-sizing:border-box;font-size:11px;text-align:center;flex-shrink:0;';
+  const sendModeRow = el('label', { style: 'display:flex;align-items:center;gap:6px;margin-bottom:4px;padding:4px;background:#0f0f0f;border-radius:3px;cursor:pointer;' });
+  const keepModeRow = el('label', { style: 'display:flex;align-items:center;gap:6px;padding:4px;background:#0f0f0f;border-radius:3px;cursor:pointer;' });
+  const sendModeRadio = el('input', { type: 'radio', name: 'template_mode', value: 'send', style: 'cursor:pointer;flex-shrink:0;' });
+  const keepModeRadio = el('input', { type: 'radio', name: 'template_mode', value: 'keep', style: 'cursor:pointer;flex-shrink:0;' });
+  sendModeRow.append(sendModeRadio, el('span', { innerText: 'Send:', style: 'color:#bbb;font-size:11px;min-width:45px;flex-shrink:0;' }));
+  keepModeRow.append(keepModeRadio, el('span', { innerText: 'Keep:', style: 'color:#bbb;font-size:11px;min-width:45px;flex-shrink:0;' }));
+  templateEditor.append(sendModeRow, keepModeRow);
+
+  const unitInputs     = {};
+  const keepUnitInputs = {};
+  UNIT_TYPES.forEach(u => {
+    unitInputs[u]     = el('input', { type: 'number', min: '0', value: '', placeholder: '0', style: inputStyle });
+    keepUnitInputs[u] = el('input', { type: 'number', min: '0', value: '', placeholder: '0', style: inputStyle });
+    sendModeRow.appendChild(unitInputs[u]);
+    keepModeRow.appendChild(keepUnitInputs[u]);
+  });
+
+  body.appendChild(templatesSection);
+
+  // Rally Point Opener Section
+  const rallySection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;position:relative;' });
+  const rallySectionHeader = el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;' });
+  const rallySectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;flex:1;' });
+  rallySectionTitle.textContent = 'Rally Point Opener';
+  const rallyCollapseBtn = el('button', { innerText: '−', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
+  const rallyHelpBtn     = el('button', { innerText: '?', type: 'button', title: 'Help', style: 'cursor:pointer;padding:2px 7px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:3px;font-size:13px;font-weight:bold;line-height:1;margin-left:4px;' });
+
+  const useGroupWrapper  = el('label', { style: 'position:absolute;top:8px;left:8px;display:flex;align-items:center;gap:6px;color:#bbb;font-size:11px;cursor:pointer;' });
+  const useGroupCheckbox = el('input', { type: 'checkbox', style: 'cursor:pointer;' });
+  useGroupWrapper.append(useGroupCheckbox, el('span', { innerText: 'Use current group' }));
+
+  const btnTestData = el('button', { innerText: 'Test', title: 'Load Test Data', type: 'button', style: 'position:absolute;top:8px;right:40px;cursor:pointer;padding:4px 8px;background:#2a4a5a;color:#fff;border:1px solid #3a6a7a;border-radius:3px;font-size:11px;' });
+
+  rallySectionHeader.append(rallySectionTitle, rallyCollapseBtn, rallyHelpBtn, useGroupWrapper, btnTestData);
+  rallySection.appendChild(rallySectionHeader);
+
+  const rallyContent    = el('div', { style: 'display:block;' });
+  const columnsWrapper  = el('div', { style: 'display:flex;gap:12px;margin-bottom:12px;' });
+  rallyContent.appendChild(columnsWrapper);
+
+  const fromColumn  = el('div', { style: 'flex:1;display:flex;flex-direction:column;position:relative;' });
+  const fromLabel   = el('div', { style: 'font-weight:bold;margin-bottom:6px;color:#aaa;text-align:center;font-size:14px;' });
+  fromLabel.textContent = 'FROM Coordinates';
+  const fromTextarea = el('textarea', { rows: 8, style: 'width:100%;box-sizing:border-box;background:#0f0f0f;color:#fff;border:1px solid #444;padding:8px;border-radius:4px;resize:vertical;font-family:monospace;', placeholder: '111|222\n222|111\n223|111' });
+  const fromOverlay  = el('div', { style: 'position:absolute;top:30px;left:0;right:0;bottom:0;background:rgba(15,15,15,0.95);border:1px solid #444;border-radius:4px;display:none;align-items:center;justify-content:center;color:#4a9eff;font-weight:bold;font-size:14px;pointer-events:none;' });
+  fromOverlay.textContent = 'Using current group';
+  fromColumn.append(fromLabel, fromTextarea, fromOverlay);
+
+  const toColumn   = el('div', { style: 'flex:1;display:flex;flex-direction:column;' });
+  const toLabel    = el('div', { style: 'font-weight:bold;margin-bottom:6px;color:#aaa;text-align:center;font-size:14px;' });
+  toLabel.textContent = 'TO Coordinates';
+  const toTextarea = el('textarea', { rows: 8, style: 'width:100%;box-sizing:border-box;background:#0f0f0f;color:#fff;border:1px solid #444;padding:8px;border-radius:4px;resize:vertical;font-family:monospace;', placeholder: '123|234\n112|223\n112|224' });
+  toColumn.append(toLabel, toTextarea);
+  columnsWrapper.append(fromColumn, toColumn);
+
+  // Search fields
+  const searchWrapper = el('div', { style: 'display:flex;gap:12px;margin-bottom:12px;' });
+  rallyContent.appendChild(searchWrapper);
+
+  function makeSearchField(labelText) {
+    const wrap     = el('div', { style: 'flex:1;display:flex;flex-direction:column;gap:4px;' });
+    const lbl      = el('div', { style: 'font-size:11px;color:#888;' });
+    lbl.textContent = labelText;
+    const input    = el('input', { placeholder: 'Search coords or names', style: 'width:100%;padding:6px;background:#0f0f0f;color:#fff;border:1px solid #444;border-radius:4px;box-sizing:border-box;' });
+    const results  = el('div', { style: 'position:relative;' });
+    const dropdown = el('div', { style: 'position:absolute;left:0;right:0;max-height:200px;overflow:auto;background:#1a1a1a;border:1px solid #444;border-radius:4px;padding:4px;display:none;z-index:100000;' });
+    results.appendChild(dropdown);
+    wrap.append(lbl, input, results);
+    return { wrap, input, dropdown };
+  }
+
+  const fromSearch = makeSearchField('Search FROM:');
+  const toSearch   = makeSearchField('Search TO:');
+  searchWrapper.append(fromSearch.wrap, toSearch.wrap);
+
+  // Open Tabs row
+  const openTabsRow     = el('div', { style: 'display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap;' });
+  const fakeModeWrapper = el('label', { style: 'display:flex;align-items:center;gap:6px;color:#bbb;font-size:12px;cursor:pointer;' });
+  const fakeModeCheckbox = el('input', { type: 'checkbox', style: 'cursor:pointer;' });
+  fakeModeWrapper.append(fakeModeCheckbox, el('span', { innerText: 'Fake Mode (limit by available units)' }));
+  const btnOpenTabs = el('button', { innerText: 'Open Tabs', type: 'button', style: 'cursor:pointer;padding:10px 24px;background:#2a5a2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;font-weight:bold;font-size:14px;' });
+  openTabsRow.append(fakeModeWrapper, btnOpenTabs);
+  rallyContent.appendChild(openTabsRow);
+  rallySection.appendChild(rallyContent);
+  body.appendChild(rallySection);
+
+  // Attack Plan Section
+  const attackPlanSection      = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
+  const attackPlanHeader       = el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;' });
+  const attackPlanTitle        = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;flex:1;' });
+  attackPlanTitle.textContent  = 'Attack Plans';
+  const attackPlanCollapseBtn  = el('button', { innerText: '−', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
+  const attackPlanHelpBtn      = el('button', { innerText: '?', type: 'button', title: 'Help', style: 'cursor:pointer;padding:2px 7px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:3px;font-size:13px;font-weight:bold;line-height:1;margin-left:4px;' });
+  attackPlanHeader.append(attackPlanTitle, attackPlanCollapseBtn, attackPlanHelpBtn);
+  attackPlanSection.appendChild(attackPlanHeader);
+
+  const attackPlanContent   = el('div', { style: 'display:block;' });
+  const attackPlanRow       = el('div', { style: 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:8px;' });
+  const btnPasteAttackPlan  = el('button', { innerText: 'Paste Attack Plan', type: 'button', style: 'cursor:pointer;padding:8px 16px;background:#5a3a2a;color:#fff;border:1px solid #7a5a3a;border-radius:4px;' });
+  const attackPlanContainer = el('div', { id: 'attack_plan_groups', style: 'display:none;margin-top:8px;' });
+  attackPlanRow.appendChild(btnPasteAttackPlan);
+  attackPlanContent.append(attackPlanRow, attackPlanContainer);
+  attackPlanSection.appendChild(attackPlanContent);
+  body.appendChild(attackPlanSection);
+
+  // Message Box
+  msgBox = el('div', { style: 'margin-bottom:12px;color:#9f9f9f;min-height:18px;text-align:center;padding:6px;background:#0a0a0a;border-radius:4px;border:1px solid #2a2a2a;cursor:pointer;', title: 'Click to view message history' });
+  body.appendChild(msgBox);
+
+  // Footer
+  const footer = el('div', { style: 'padding:12px;background:linear-gradient(135deg,#1a1a1a 0%,#0a0a0a 100%);border-bottom-left-radius:6px;border-bottom-right-radius:6px;border-top:2px solid #444;text-align:center;' });
+  const author = el('div', { style: 'font-size:12px;color:#888;text-shadow:1px 1px 2px rgba(0,0,0,0.6);letter-spacing:0.5px;' });
+  author.textContent = 'Created by NeilB';
+  footer.appendChild(author);
+  container.appendChild(footer);
+  document.body.appendChild(container);
+
+  // Help Overlay
+  helpOverlay = el('div', { style: 'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:200000;display:none;align-items:center;justify-content:center;' });
+  const helpContent  = el('div', { style: 'background:#1a1a1a;color:#fff;padding:24px;border-radius:8px;border:2px solid #444;max-width:480px;width:90%;' });
+  helpTitle          = el('div', { style: 'font-size:16px;font-weight:bold;margin-bottom:12px;color:#e0e0e0;' });
+  helpText           = el('div', { style: 'font-size:13px;color:#bbb;line-height:1.7;margin-bottom:16px;' });
+  const helpCloseRow = el('div', { style: 'display:flex;justify-content:center;' });
+  const helpCloseBtn = el('button', { innerText: 'Close', type: 'button', style: 'cursor:pointer;padding:8px 24px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;' });
+  helpCloseRow.appendChild(helpCloseBtn);
+  helpContent.append(helpTitle, helpText, helpCloseRow);
+  helpOverlay.appendChild(helpContent);
+  document.body.appendChild(helpOverlay);
+
+  // Message History Overlay
+  const msgHistoryOverlay  = el('div', { style: 'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:200000;display:none;align-items:center;justify-content:center;' });
+  const msgHistoryContent  = el('div', { style: 'background:#1a1a1a;color:#fff;padding:20px;border-radius:8px;border:2px solid #444;max-width:480px;width:90%;max-height:60vh;display:flex;flex-direction:column;' });
+  const msgHistoryTitle    = el('div', { style: 'font-size:16px;font-weight:bold;margin-bottom:12px;color:#e0e0e0;flex-shrink:0;' });
+  msgHistoryTitle.textContent = 'Message History';
+  const msgHistoryList     = el('div', { style: 'overflow-y:auto;flex:1;' });
+  const msgHistoryCloseRow = el('div', { style: 'display:flex;justify-content:center;margin-top:12px;flex-shrink:0;' });
+  const msgHistoryCloseBtn = el('button', { innerText: 'Close', type: 'button', style: 'cursor:pointer;padding:8px 24px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;' });
+  msgHistoryCloseRow.appendChild(msgHistoryCloseBtn);
+  msgHistoryContent.append(msgHistoryTitle, msgHistoryList, msgHistoryCloseRow);
+  msgHistoryOverlay.appendChild(msgHistoryContent);
+  document.body.appendChild(msgHistoryOverlay);
+
+  /* ── Template Logic ── */
+
+  function refreshTemplateSelect() {
+    templateSelect.innerHTML = '';
+    templateSelect.appendChild(el('option', { value: '', innerText: '-- Select Template --' }));
+    Object.keys(unitTemplates).sort().forEach(name => {
+      templateSelect.appendChild(el('option', { value: name, innerText: name }));
+    });
+    if (currentTemplate && unitTemplates[currentTemplate]) {
+      templateSelect.value = currentTemplate;
+      loadTemplateIntoEditor(currentTemplate);
+    } else {
+      templateSelect.value = '';
+      currentTemplate = null;
+      templateEditor.style.display = 'none';
+    }
+  }
+
+  function loadTemplateIntoEditor(name) {
+    if (!name || !unitTemplates[name]) { templateEditor.style.display = 'none'; return; }
+    const template = unitTemplates[name];
+    templateEditor.style.display = 'block';
+    const isSend = template.mode === 'send';
+    sendModeRadio.checked = isSend;
+    keepModeRadio.checked = !isSend;
+    sendModeRow.style.background = isSend ? '#1a3a1a' : '#0f0f0f';
+    keepModeRow.style.background = isSend ? '#0f0f0f' : '#1a3a1a';
+    UNIT_TYPES.forEach(u => { unitInputs[u].value = ''; keepUnitInputs[u].value = ''; });
+    const inputs = isSend ? unitInputs : keepUnitInputs;
+    UNIT_TYPES.forEach(u => { inputs[u].value = template.units[u] || ''; });
+  }
+
+  function saveCurrentTemplate() {
+    if (!currentTemplate) return;
+    const mode = sendModeRadio.checked ? 'send' : 'keep';
+    const inputs = mode === 'send' ? unitInputs : keepUnitInputs;
+    const units = {};
+    UNIT_TYPES.forEach(u => {
+      const v = inputs[u].value.trim();
+      if (v && v !== '0') units[u] = parseInt(v);
+    });
+    unitTemplates[currentTemplate] = { mode, units };
+    saveTemplates();
+  }
+
+  function setupSearch(inputEl, dropdownEl, targetTextarea) {
+    let timeout = 0;
+    inputEl.addEventListener('input', () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        const q = inputEl.value.trim().toLowerCase();
+        if (!q) { dropdownEl.style.display = 'none'; dropdownEl.innerHTML = ''; return; }
+        if (!villagesArr.length) {
+          dropdownEl.style.display = 'block';
+          dropdownEl.innerHTML = '<div style="padding:6px;color:#888;">No village data loaded</div>';
+          return;
+        }
+        const results = villagesArr.filter(v =>
+          coordKey(v.x, v.y).indexOf(q) !== -1 || (v.name && v.name.toLowerCase().indexOf(q) !== -1)
+        ).slice(0, 50);
+        if (!results.length) {
+          dropdownEl.style.display = 'block';
+          dropdownEl.innerHTML = '<div style="padding:6px;color:#888;">No matches</div>';
+          return;
+        }
+        dropdownEl.style.display = 'block';
+        dropdownEl.innerHTML = '';
+        results.forEach(r => {
+          const item = el('div', { style: 'padding:6px;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer;transition:background 0.2s;' });
+          item.innerHTML = '<span style="color:#4a9eff;">' + r.x + '|' + r.y + '</span> — <span style="color:#bbb;">' + r.name + '</span>';
+          item.addEventListener('mouseenter', () => { item.style.background = '#2a2a2a'; });
+          item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });
+          item.addEventListener('click', () => {
+            const lines = targetTextarea.value.trim() ? targetTextarea.value.trim().split('\n') : [];
+            lines.push(r.x + '|' + r.y);
+            targetTextarea.value = lines.join('\n');
+            dropdownEl.style.display = 'none';
+            inputEl.value = '';
+          });
+          dropdownEl.appendChild(item);
+        });
+      }, 120);
+    });
+  }
+
+  /* ── Event Wiring ── */
+
+  // Draggable
+  (function makeDraggable() {
+    let isDragging = false, startX = 0, startY = 0, initLeft = 0, initTop = 0;
+
+    function onMouseDown(e) {
+      const t = e.target;
+      if (t === closeBtn) return;
+      if (['BUTTON','INPUT','TEXTAREA','SELECT','LABEL'].indexOf(t.tagName) !== -1) return;
+      if (t.closest && t.closest('button,input,textarea,select,label')) return;
+      e.preventDefault();
+      isDragging = true;
+      startX = e.clientX; startY = e.clientY;
+      const r = container.getBoundingClientRect();
+      initLeft = r.left; initTop = r.top;
+      document.onmousemove = onMouseMove;
+      document.onmouseup   = onMouseUp;
+    }
+
+    function onMouseMove(e) {
+      if (!isDragging) return;
+      e.preventDefault();
+      const newLeft = Math.max(-container.offsetWidth + 50, Math.min(initLeft + e.clientX - startX, window.innerWidth  - 50));
+      const newTop  = Math.max(0,                           Math.min(initTop  + e.clientY - startY, window.innerHeight - 50));
+      container.style.left      = newLeft + 'px';
+      container.style.top       = newTop  + 'px';
+      container.style.transform = 'none';
+    }
+
+    function onMouseUp() {
+      isDragging = false;
+      document.onmousemove = null;
+      document.onmouseup   = null;
+    }
+
+    titleBar.onmousedown = onMouseDown;
+    body.onmousedown     = onMouseDown;
+  })();
+
+  // Close
+  closeBtn.addEventListener('click', () => container.remove());
+
+  // Collapse toggles
+  templatesCollapseBtn.onclick  = makeCollapseHandler(templatesContent,  templatesCollapseBtn);
+  rallyCollapseBtn.onclick      = makeCollapseHandler(rallyContent,      rallyCollapseBtn);
+  attackPlanCollapseBtn.onclick = makeCollapseHandler(attackPlanContent, attackPlanCollapseBtn);
+
+  // Help
+  helpCloseBtn.addEventListener('click', () => { helpOverlay.style.display = 'none'; });
+  helpOverlay.addEventListener('click', e => { if (e.target === helpOverlay) helpOverlay.style.display = 'none'; });
+
+  templatesHelpBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    showHelp('Unit Templates',
+      'Define unit compositions to auto-fill when opening rally tabs.<br><br>' +
+      '<b>Send mode:</b> sends exactly the number specified per attack.<br>' +
+      '<b>Keep mode:</b> keeps that many troops home and sends the rest.<br><br>' +
+      'Select a template before clicking <i>Open Tabs</i> to apply it. Enable <i>Fake Mode</i> to automatically skip attacks where a village lacks sufficient units.');
+  });
+
+  rallyHelpBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    showHelp('Rally Point Opener',
+      'Enter FROM and TO coordinates — one pair per line — then click <i>Open Tabs</i> to open a rally point tab for each pair.<br><br>' +
+      'Use the search fields to find villages by name or coordinate and append them to the list.<br><br>' +
+      'Enable <i>Use current group</i> to automatically use your currently selected in-game village group as the FROM list.');
+  });
+
+  attackPlanHelpBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    showHelp('Attack Plans',
+      'Paste a formatted attack plan to generate one button per attack wave.<br><br>' +
+      'Clicking a wave button opens all attacks in that wave as rally point tabs.<br><br>' +
+      'If a launch time is included in the plan, a live countdown is shown on the button.');
+  });
+
+  btnGlobalHelp.addEventListener('click', e => {
+    e.stopPropagation();
+    showHelp('Rally Opener — Overview',
+      '<b>Purpose</b><br>' +
+      'Opens rally point tabs for multiple village pairs at once, letting you queue up attacks or fakes quickly without navigating manually.<br><br>' +
+      '<b>How to use</b><br>' +
+      '1. Optionally select or create a unit template to pre-fill troop counts.<br>' +
+      '2. Enter FROM and TO coordinates (one pair per line), or paste an attack plan.<br>' +
+      '3. Click <i>Open Tabs</i> or a wave button to open all rally points at once.<br><br>' +
+      'Village data is fetched automatically from the game server and refreshed every hour.<br><br>' +
+      '<b>Premium requirements</b><br>' +
+      'No Premium is required for the core functionality. The following features require <b>Account Manager</b>:<br>' +
+      '— Unit templates (reads available units from the Combined Village Overview)<br>' +
+      '— Fake Mode (checks unit availability per village)<br>' +
+      '— Use current group (reads your active village group from the Combined Overview)<br><br>' +
+      '<b>Popups blocked?</b><br>' +
+      'After clicking Open Tabs, look for the popup blocked icon in your browser\'s address bar, click it, and choose <i>Always allow popups from this site</i>. Then try again.');
+  });
+
+  // Account Manager feature gating
+  if (!hasAccountManager) {
+    const disabled = 'opacity:0.35;pointer-events:none;';
+    templatesSection.style.cssText += disabled;
+    templatesSection.title = 'Requires Account Manager';
+    fakeModeWrapper.style.cssText += disabled;
+    fakeModeWrapper.title = 'Requires Account Manager';
+    useGroupWrapper.style.cssText += disabled;
+    useGroupWrapper.title = 'Requires Account Manager';
+  }
+
+  // Message history
+  msgBox.addEventListener('click', () => {
+    msgHistoryList.innerHTML = messageHistory.length === 0
+      ? '<div style="color:#888;padding:8px;">No messages yet</div>'
+      : messageHistory.slice().reverse().map(e => {
+          const t = e.time;
+          const ts = ('0'+t.getHours()).slice(-2) + ':' + ('0'+t.getMinutes()).slice(-2) + ':' + ('0'+t.getSeconds()).slice(-2);
+          return '<div style="padding:6px 4px;border-bottom:1px solid #2a2a2a;font-size:12px;">' +
+            '<span style="color:#555;margin-right:8px;">' + ts + '</span>' +
+            '<span style="color:#ddd;">' + e.text + '</span></div>';
+        }).join('');
+    msgHistoryOverlay.style.display = 'flex';
+  });
+  msgHistoryCloseBtn.addEventListener('click', () => { msgHistoryOverlay.style.display = 'none'; });
+  msgHistoryOverlay.addEventListener('click', e => { if (e.target === msgHistoryOverlay) msgHistoryOverlay.style.display = 'none'; });
+
+  // Use current group toggle
+  useGroupCheckbox.addEventListener('change', () => {
+    const active = useGroupCheckbox.checked;
+    fromTextarea.disabled      = active;
+    fromTextarea.style.opacity = active ? '0.5' : '1';
+    fromOverlay.style.display  = active ? 'flex' : 'none';
+  });
+
+  // Template auto-save on input change
+  UNIT_TYPES.forEach(u => {
+    unitInputs[u].addEventListener('input',     () => { if (currentTemplate) saveCurrentTemplate(); });
+    keepUnitInputs[u].addEventListener('input', () => { if (currentTemplate) saveCurrentTemplate(); });
+  });
+
+  // Mode selection visual feedback
+  sendModeRadio.addEventListener('change', () => {
+    if (!sendModeRadio.checked) return;
+    sendModeRow.style.background = '#1a3a1a';
+    keepModeRow.style.background = '#0f0f0f';
+    if (currentTemplate) saveCurrentTemplate();
+  });
+  keepModeRadio.addEventListener('change', () => {
+    if (!keepModeRadio.checked) return;
+    keepModeRow.style.background = '#1a3a1a';
+    sendModeRow.style.background = '#0f0f0f';
+    if (currentTemplate) saveCurrentTemplate();
+  });
+
+  // Template controls
+  btnNewTemplate.onclick = function createTemplate() {
+    const name = (prompt('Enter template name:') || '').trim();
+    if (!name) return;
+    if (unitTemplates[name]) { alert('A template with this name already exists'); return; }
+    unitTemplates[name] = { mode: 'send', units: {} };
+    saveTemplates();
+    currentTemplate = name;
+    refreshTemplateSelect();
+    showMessage('Template "' + name + '" created');
+  };
+
+  btnDeleteTemplate.onclick = function deleteTemplate() {
+    const selected = templateSelect.value;
+    if (!selected) { showMessage('Please select a template to delete'); return; }
+    if (confirm('Delete template "' + selected + '"?')) {
+      delete unitTemplates[selected];
+      saveTemplates();
+      if (currentTemplate === selected) currentTemplate = null;
+      refreshTemplateSelect();
+      showMessage('Template deleted');
+    }
+  };
+
+  templateSelect.onchange = function onTemplateChange() {
+    currentTemplate = templateSelect.value || null;
+    if (currentTemplate) {
+      loadTemplateIntoEditor(currentTemplate);
+      showMessage('Template "' + currentTemplate + '" selected');
+    } else {
+      templateEditor.style.display = 'none';
+      showMessage('No template selected');
+    }
+  };
+
+  // Search
+  setupSearch(fromSearch.input, fromSearch.dropdown, fromTextarea);
+  setupSearch(toSearch.input,   toSearch.dropdown,   toTextarea);
+  document.addEventListener('click', ev => {
+    if (!container.contains(ev.target)) {
+      fromSearch.dropdown.style.display = 'none';
+      toSearch.dropdown.style.display   = 'none';
+    }
+  });
+
+  // Open Tabs
+  btnOpenTabs.onclick = function openTabs() {
+    const toCoords = parseCoordinateList(toTextarea.value);
+    let fromCoords;
+    if (useGroupCheckbox.checked) {
+      const groupVillages = getVillagesFromCurrentGroup();
+      if (!groupVillages.length) { showMessage('No villages found in current group'); return; }
+      fromCoords = groupVillages.map(v => v.coord);
+    } else {
+      fromCoords = parseCoordinateList(fromTextarea.value);
+    }
+    if (!fromCoords.length || !toCoords.length) {
+      showMessage('Please enter coordinates in both FROM and TO columns');
+      return;
+    }
+    const urls = prepareTabsFromPairs(fromCoords, toCoords);
+    if (!urls.length) return;
+    showMessage('Opening ' + urls.length + ' tabs...');
+    openUrls(urls);
+  };
+
+  // Test data
+  btnTestData.onclick = function loadTestData() {
+    fromTextarea.value = '531|537\n531|537';
+    toTextarea.value   = '534|534\n537|536';
+    showMessage('Test data loaded');
+  };
+
+  // Paste Attack Plan
+  btnPasteAttackPlan.onclick = function pasteAttackPlan() {
+    const text = prompt('Paste your attack plan (ASCII or copied from HTML table):');
+    if (!text) return;
+    try {
+      attackPlanGroups = parseAttackPlan(text);
+      if (!Object.keys(attackPlanGroups).length) { showMessage('No valid groups found in attack plan'); return; }
+      createGroupButtons();
+      showMessage('Loaded ' + Object.keys(attackPlanGroups).length + ' groups from attack plan');
+    } catch (e) {
+      showMessage('Error parsing attack plan: ' + e.message);
+      console.error(e);
+    }
+  };
+
+  /* ── Init ── */
+
+  loadTemplates();
+  refreshTemplateSelect();
+  showMessage('Rally Opener ready!');
+
 })();
-
-// Close button
-closeBtn.addEventListener('click', function(){ container.parentNode && container.parentNode.removeChild(container); });
-
-// Search functionality
-function setupSearch(inputEl, dropdownEl, targetTextarea){
-var searchTimeout = 0;
-inputEl.addEventListener('input', function(){
-if(searchTimeout) clearTimeout(searchTimeout);
-searchTimeout = setTimeout(function(){
-var q = (inputEl.value||'').trim().toLowerCase();
-if(!q){ dropdownEl.style.display='none'; dropdownEl.innerHTML=''; return; }
-if(!villagesArr || villagesArr.length===0){ 
-dropdownEl.style.display='block'; 
-dropdownEl.innerHTML = '<div style="padding:6px;color:#888;">No village.txt loaded</div>'; 
-return; 
-}
-var results=[];
-for(var i=0;i<villagesArr.length;i++){
-if(results.length>=50) break;
-var v = villagesArr[i];
-var coord = coordKey(v.x,v.y);
-if(coord.indexOf(q)!==-1 || String(v.x).indexOf(q)!==-1 || String(v.y).indexOf(q)!==-1 || (v.name && v.name.toLowerCase().indexOf(q)!==-1)){
-results.push(v);
-}
-}
-if(results.length===0){ 
-dropdownEl.style.display='block'; 
-dropdownEl.innerHTML = '<div style="padding:6px;color:#888;">No matches</div>'; 
-return; 
-}
-dropdownEl.style.display='block';
-dropdownEl.innerHTML='';
-for(var j=0;j<Math.min(results.length,50);j++){
-(function(r){
-var item = el('div',{style:'padding:6px;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer;transition:background 0.2s;'});
-item.innerHTML = '<span style="color:#4a9eff;">' + r.x + '|' + r.y + '</span> — <span style="color:#bbb;">' + r.name + '</span>';
-item.addEventListener('mouseenter', function(){ item.style.background = '#2a2a2a'; });
-item.addEventListener('mouseleave', function(){ item.style.background = 'transparent'; });
-item.addEventListener('click', function(){
-var coordText = r.x + '|' + r.y;
-var currentVal = targetTextarea.value.trim();
-var lines = currentVal ? currentVal.split('\n') : [];
-lines.push(coordText);
-targetTextarea.value = lines.join('\n');
-dropdownEl.style.display='none';
-inputEl.value = '';
-});
-dropdownEl.appendChild(item);
-})(results[j]);
-}
-}, 120);
-});
-}
-
-setupSearch(fromSearchInput, fromDropdown, fromTextarea);
-setupSearch(toSearchInput, toDropdown, toTextarea);
-
-document.addEventListener('click', function(ev){ 
-if(!container.contains(ev.target)) { 
-fromDropdown.style.display='none'; 
-toDropdown.style.display='none';
-} 
-});
-
-// Data
-var villagesArr = parseVillagesTxt(loadVillagesText());
-var villagesIndex = buildCoordIndex(villagesArr);
-
-// Auto-fetch village.txt if missing or older than 1 hour
-(function(){
-try{
-var lastFetch = localStorage.getItem('tw_villages_updated');
-var needsFetch = !lastFetch || (Date.now() - Number(lastFetch)) > 60 * 60 * 1000;
-if(needsFetch){
-tryFetchVillagesFromServer().then(function(txt){
-if(!txt) throw new Error('Empty');
-saveVillagesText(txt);
-villagesArr = parseVillagesTxt(txt);
-villagesIndex = buildCoordIndex(villagesArr);
-showMessage('Village data updated (' + villagesArr.length + ' villages)');
-}).catch(function(err){
-if(!lastFetch) showMessage('Could not load village data');
-});
-}
-}catch(e){
-console.error('Auto-fetch error:', e);
-}
-})();
-
-// Server time utilities - DEFINE FUNCTION FIRST
-function getServerTime(){
-try{
-// Parse from the game header - time and date are in separate elements
-var serverTimeEl = document.getElementById('serverTime');
-var serverDateEl = document.getElementById('serverDate');
-if(serverTimeEl && serverDateEl){
-var timeText = serverTimeEl.textContent.trim();
-var dateText = serverDateEl.textContent.trim();
-// Parse time format like "16:39:47"
-var timeMatch = timeText.match(/(\d{2}):(\d{2}):(\d{2})/);
-// Parse date format like "26/01/2026"
-var dateMatch = dateText.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-if(timeMatch && dateMatch){
-var day = parseInt(dateMatch[1]);
-var month = parseInt(dateMatch[2]) - 1;
-var year = parseInt(dateMatch[3]);
-var hour = parseInt(timeMatch[1]);
-var minute = parseInt(timeMatch[2]);
-var second = parseInt(timeMatch[3]);
-return new Date(year, month, day, hour, minute, second);
-}
-}
-
-// Fallback to local time if server time unavailable
-console.warn('Server time not found, using local time');
-return new Date();
-}catch(e){
-console.error('Error getting server time:', e);
-return new Date();
-}
-}
-
-// Store server time offset - CALL AFTER FUNCTION IS DEFINED
-var serverTimeOffset = 0;
-(function(){
-try{
-var serverTime = getServerTime();
-var localTime = new Date();
-if(serverTime && serverTime.getTime){
-// Server time - Local time gives us the offset
-// If server is GMT+0 and local is GMT+1, server is 1 hour behind
-// So serverTime - localTime will be negative (e.g., -3600000 ms = -1 hour)
-var rawOffset = serverTime.getTime() - localTime.getTime();
-// Round to nearest hour since timezones are always in whole hours
-var oneHour = 60 * 60 * 1000; // 3600000 ms
-serverTimeOffset = Math.round(rawOffset / oneHour) * oneHour;
-console.log('Local time:', localTime.toISOString());
-console.log('Server time:', serverTime.toISOString());
-console.log('Server time offset (raw):', rawOffset, 'ms');
-console.log('Server time offset (rounded to hour):', serverTimeOffset, 'ms', '(' + (serverTimeOffset / oneHour) + ' hours)');
-} else {
-console.warn('Could not calculate server time offset - serverTime invalid');
-}
-}catch(e){
-console.error('Error calculating server time offset:', e);
-}
-})();
-
-function getCurrentServerTime(){
-var now = new Date();
-return new Date(now.getTime() + serverTimeOffset);
-}
-
-// Template System
-var unitTemplates = {};
-var currentTemplate = null;
-
-// Load templates from localStorage
-function loadTemplates(){
-try{
-var saved = localStorage.getItem('tw_unit_templates');
-if(saved){
-unitTemplates = JSON.parse(saved);
-}
-}catch(e){
-console.error('Error loading templates:', e);
-}
-}
-
-function saveTemplates(){
-try{
-localStorage.setItem('tw_unit_templates', JSON.stringify(unitTemplates));
-}catch(e){
-console.error('Error saving templates:', e);
-}
-}
-
-function refreshTemplateSelect(){
-templateSelect.innerHTML = '';
-var noneOpt = el('option',{value:'', innerText:'-- Select Template --'});
-templateSelect.appendChild(noneOpt);
-var keys = Object.keys(unitTemplates).sort();
-for(var i=0;i<keys.length;i++){
-var opt = el('option',{value:keys[i], innerText:keys[i]});
-templateSelect.appendChild(opt);
-}
-if(currentTemplate && unitTemplates[currentTemplate]){
-templateSelect.value = currentTemplate;
-loadTemplateIntoEditor(currentTemplate);
-} else {
-templateSelect.value = '';
-currentTemplate = null;
-templateEditor.style.display = 'none';
-}
-}
-
-function loadTemplateIntoEditor(templateName){
-if(!templateName || !unitTemplates[templateName]){
-templateEditor.style.display = 'none';
-return;
-}
-  
-var template = unitTemplates[templateName];
-templateEditor.style.display = 'block';
-  
-// Set mode
-if(template.mode === 'send'){
-sendModeRadio.checked = true;
-sendModeRow.style.background = '#1a3a1a';
-keepModeRow.style.background = '#0f0f0f';
-} else {
-keepModeRadio.checked = true;
-keepModeRow.style.background = '#1a3a1a';
-sendModeRow.style.background = '#0f0f0f';
-}
-  
-// Clear all inputs first
-for(var unitType in unitInputs){
-unitInputs[unitType].value = '';
-keepUnitInputs[unitType].value = '';
-}
-  
-// Set unit values in the correct input set based on mode
-var inputsToSet = template.mode === 'send' ? unitInputs : keepUnitInputs;
-for(var unitType in inputsToSet){
-inputsToSet[unitType].value = template.units[unitType] || '';
-}
-}
-
-function saveCurrentTemplate(){
-if(!currentTemplate) return;
-  
-var mode = sendModeRadio.checked ? 'send' : 'keep';
-var units = {};
-  
-// Get values from the appropriate input set based on mode
-var inputsToRead = mode === 'send' ? unitInputs : keepUnitInputs;
-  
-for(var unitType in inputsToRead){
-var val = inputsToRead[unitType].value.trim();
-if(val && val !== '0'){
-units[unitType] = parseInt(val);
-}
-}
-  
-unitTemplates[currentTemplate] = {
-mode: mode,
-units: units
-};
-  
-saveTemplates();
-}
-
-function showTemplateEditor(templateName){
-// This function is now obsolete - keeping for compatibility
-}
-
-// Template button handlers
-btnNewTemplate.onclick = function(){
-var name = prompt('Enter template name:');
-if(!name || !name.trim()){
-return;
-}
-name = name.trim();
-if(unitTemplates[name]){
-alert('A template with this name already exists');
-return;
-}
-  
-// Create new template with defaults
-unitTemplates[name] = {
-mode: 'send',
-units: {}
-};
-saveTemplates();
-currentTemplate = name;
-refreshTemplateSelect();
-showMessage('Template "' + name + '" created');
-};
-
-btnDeleteTemplate.onclick = function(){
-var selected = templateSelect.value;
-if(!selected){
-showMessage('Please select a template to delete');
-return;
-}
-if(confirm('Delete template "' + selected + '"?')){
-delete unitTemplates[selected];
-saveTemplates();
-if(currentTemplate === selected) currentTemplate = null;
-refreshTemplateSelect();
-showMessage('Template deleted');
-}
-};
-
-templateSelect.onchange = function(){
-var selected = templateSelect.value;
-if(selected){
-currentTemplate = selected;
-loadTemplateIntoEditor(selected);
-showMessage('Template "' + currentTemplate + '" selected');
-} else {
-currentTemplate = null;
-templateEditor.style.display = 'none';
-showMessage('No template selected');
-}
-};
-
-// Load templates on start
-loadTemplates();
-refreshTemplateSelect();
-
-// Function to read units from combined overview for a specific village
-function getVillageUnitsFromOverview(villageId){
-var units = {};
-try{
-// Find the row in combined table for this village
-var combinedTable = document.getElementById('combined_table');
-if(!combinedTable){
-console.log('Combined table not found');
-return units;
-}
-  
-// Find the row with this village ID
-var rows = combinedTable.querySelectorAll('tr');
-for(var i=0;i<rows.length;i++){
-var row = rows[i];
-// Look for village link with matching ID
-var villageSpan = row.querySelector('span.quickedit-vn[data-id="' + villageId + '"]');
-if(!villageSpan) continue;
-  
-console.log('Found village row for ID:', villageId);
-  
-// Extract unit counts from cells with class "unit-item"
-var unitCells = row.querySelectorAll('td.unit-item');
-console.log('Found unit cells:', unitCells.length);
-  
-// Map each cell to corresponding unit type
-for(var j=0;j<unitCells.length && j<UNIT_TYPES.length;j++){
-var count = parseInt(unitCells[j].textContent.trim()) || 0;
-units[UNIT_TYPES[j]] = count;
-console.log('Unit:', UNIT_TYPES[j], '=', count);
-}
-  
-break;
-}
-  
-console.log('Units extracted for village', villageId, ':', units);
-}catch(e){
-console.error('Error reading units from overview:', e);
-}
-return units;
-}
-
-// Function to calculate units to send based on template
-function calculateUnitsToSend(availableUnits, template){
-var unitsToSend = {};
-var mode = template.mode;
-var config = template.units;
-
-for(var unitType in availableUnits){
-var available = availableUnits[unitType] || 0;
-var templateValue = config[unitType] || 0;
-var toSend = 0;
-
-if(mode === 'send'){
-toSend = Math.min(templateValue, available);
-} else if(mode === 'keep'){
-toSend = Math.max(0, available - templateValue);
-}
-
-if(toSend > 0) unitsToSend[unitType] = toSend;
-}
-
-return unitsToSend;
-}
-
-// Function to build URL with unit template
-function buildRallyUrlWithTemplate(forVillageId, targetVillageId){
-var baseUrl = buildRallyUrl(forVillageId, targetVillageId);
-  
-if(!currentTemplate || !unitTemplates[currentTemplate]){
-return baseUrl;
-}
-  
-// Read available units from the overview page
-var availableUnits = getVillageUnitsFromOverview(forVillageId);
-console.log('Available units for village ' + forVillageId + ':', availableUnits);
-  
-// Calculate units to send
-var unitsToSend = calculateUnitsToSend(availableUnits, unitTemplates[currentTemplate]);
-console.log('Units to send:', unitsToSend);
-  
-// Add units as URL parameters
-try{
-var url = new URL(baseUrl);
-for(var unitType in unitsToSend){
-url.searchParams.set(unitType, unitsToSend[unitType]);
-}
-return url.toString();
-}catch(e){
-// Fallback for older browsers
-var params = [];
-for(var ut in unitsToSend){
-params.push(ut + '=' + unitsToSend[ut]);
-}
-return baseUrl + (baseUrl.indexOf('?') > -1 ? '&' : '?') + params.join('&');
-}
-}
-
-// Function to get villages from current in-game group
-function getVillagesFromCurrentGroup(){
-var villages = [];
-try{
-// Method 1: Check URL for current group
-var currentUrl = window.location.href;
-var groupMatch = currentUrl.match(/[?&]group=(\d+)/);
-var currentGroupId = groupMatch ? groupMatch[1] : '0';
-console.log('Current group ID:', currentGroupId);
-    
-// Method 2: Check for selected group in dropdown
-var groupSelect = document.getElementById('group_id');
-if(groupSelect){
-currentGroupId = groupSelect.value;
-console.log('Group from dropdown:', currentGroupId);
-}
-    
-// Get villages from combined table that belong to this group
-var combinedTable = document.getElementById('combined_table');
-if(!combinedTable){
-console.log('Combined table not found');
-return villages;
-}
-    
-var rows = combinedTable.querySelectorAll('tr');
-for(var i=0;i<rows.length;i++){
-var row = rows[i];
-var villageSpan = row.querySelector('span.quickedit-vn[data-id]');
-if(!villageSpan) continue;
-      
-var villageId = villageSpan.getAttribute('data-id');
-var villageName = villageSpan.textContent.trim();
-      
-// Extract coordinates from village name
-var coordMatch = villageName.match(/\((\d+)\|(\d+)\)/);
-if(coordMatch){
-var x = coordMatch[1];
-var y = coordMatch[2];
-villages.push({
-id: villageId,
-coord: x + '|' + y,
-name: villageName
-});
-console.log('Found village in group:', villageId, x + '|' + y);
-}
-}
-    
-console.log('Total villages in current group:', villages.length);
-}catch(e){
-console.error('Error getting villages from group:', e);
-}
-return villages;
-}
-
-function parseCoordinateList(text){
-if(!text) return [];
-var lines = text.trim().split(/\r?\n/);
-var coords = [];
-for(var i=0;i<lines.length;i++){
-var line = lines[i].trim();
-if(!line) continue;
-line = line.replace(',', '|');
-if(line.match(/\d+\|\d+/)){
-coords.push(line);
-}
-}
-return coords;
-}
-
-function coordToVillageId(coord){
-if(!coord) return null;
-var m = coord.match(/(\d+)\|(\d+)/);
-if(!m) return null;
-var key = coordKey(Number(m[1]), Number(m[2]));
-var v = lookupIndex(villagesIndex, key);
-return v ? v.id : null;
-}
-
-function buildRallyUrl(forVillageId, targetVillageId){
-try{
-var baseUrl = window.location.origin + window.location.pathname;
-var url = new URL(baseUrl);
-url.searchParams.set('screen','place');
-url.searchParams.set('village', forVillageId);
-url.searchParams.set('target', targetVillageId);
-return url.toString();
-}catch(e){
-return location.origin + '/game.php?village=' + encodeURIComponent(forVillageId) + '&screen=place&target=' + encodeURIComponent(targetVillageId);
-}
-}
-
-function prepareTabsFromPairs(fromCoords, toCoords){
-var maxLen = Math.max(fromCoords.length, toCoords.length);
-var pairs = [];
-var failed = [];
-  
-// First, create all coordinate pairs
-for(var i=0;i<maxLen;i++){
-var fromCoord = fromCoords[i] || null;
-var toCoord = toCoords[i] || null;
-if(!fromCoord || !toCoord){ 
-failed.push('Row ' + (i+1) + ': missing From or To coordinate');
-continue; 
-}
-var fromId = coordToVillageId(fromCoord);
-var toId = coordToVillageId(toCoord);
-if(!fromId || !toId){ 
-failed.push('Row ' + (i+1) + ': village not found for ' + fromCoord + ' -> ' + toCoord);
-continue; 
-}
-pairs.push({fromId: fromId, toId: toId, fromCoord: fromCoord, toCoord: toCoord, index: i+1});
-}
-  
-if(pairs.length === 0){
-showMessage('No valid pairs found - check your coordinates');
-if(failed.length > 0){
-console.log('Rally Opener failures:', failed);
-}
-return [];
-}
-  
-// Check if Fake Mode is enabled
-var isFakeMode = fakeModeCheckbox.checked;
-  
-if(isFakeMode && currentTemplate && unitTemplates[currentTemplate]){
-console.log('Fake Mode enabled - checking unit availability');
-    
-// Group pairs by FROM village
-var villageGroups = {};
-for(var j=0;j<pairs.length;j++){
-var pair = pairs[j];
-if(!villageGroups[pair.fromId]){
-villageGroups[pair.fromId] = [];
-}
-villageGroups[pair.fromId].push(pair);
-}
-    
-// For each village, calculate how many attacks we can afford
-var finalPairs = [];
-var noUnitDataDetected = false;
-for(var villageId in villageGroups){
-var villagePairs = villageGroups[villageId];
-var availableUnits = getVillageUnitsFromOverview(villageId);
-var template = unitTemplates[currentTemplate];
-
-if(Object.keys(availableUnits).length === 0) noUnitDataDetected = true;
-
-// Calculate how many attacks this village can support
-var maxAttacks = calculateMaxAttacks(availableUnits, template);
-console.log('Village', villageId, 'can support', maxAttacks, 'attacks out of', villagePairs.length, 'requested');
-
-if(maxAttacks >= villagePairs.length){
-finalPairs = finalPairs.concat(villagePairs);
-} else if(maxAttacks > 0){
-var shuffled = villagePairs.slice();
-for(var k=shuffled.length-1;k>0;k--){
-var randIdx = Math.floor(Math.random() * (k+1));
-var temp = shuffled[k];
-shuffled[k] = shuffled[randIdx];
-shuffled[randIdx] = temp;
-}
-for(var m=0;m<maxAttacks;m++){
-finalPairs.push(shuffled[m]);
-}
-for(var n=maxAttacks;n<shuffled.length;n++){
-failed.push('Row ' + shuffled[n].index + ': insufficient units (randomly skipped in Fake Mode)');
-}
-} else {
-for(var p=0;p<villagePairs.length;p++){
-failed.push('Row ' + villagePairs[p].index + (noUnitDataDetected ? ': no unit data — open Combined Village Overview first' : ': insufficient units in village'));
-}
-}
-}
-
-pairs = finalPairs;
-}
-  
-// Build URLs
-var urls = [];
-for(var q=0;q<pairs.length;q++){
-var url = buildRallyUrlWithTemplate(pairs[q].fromId, pairs[q].toId);
-urls.push(url);
-}
-  
-if(urls.length === 0){
-if(noUnitDataDetected){
-showHelp('Unit Data Unavailable',
-'Fake Mode needs unit counts from the Combined Village Overview, which requires the <b>Account Manager</b> Premium feature.<br><br>' +
-'To fix:<br>' +
-'1. Make sure you have Account Manager active.<br>' +
-'2. Navigate to the Combined Village Overview page.<br>' +
-'3. Run the script again from there.');
-} else {
-showMessage('No valid pairs found - check your coordinates and available units');
-}
-if(failed.length > 0){
-console.log('Rally Opener failures:', failed);
-}
-return [];
-}
-  
-var msg = 'Prepared ' + urls.length + ' tab' + (urls.length > 1 ? 's' : '');
-if(isFakeMode && failed.length > 0){
-msg += ' (skipped ' + failed.length + ' due to unit limits)';
-}
-showMessage(msg + ' - ready to open!');
-  
-if(failed.length > 0){
-console.log('Rally Opener warnings:', failed);
-}
-return urls;
-}
-
-// Calculate maximum number of attacks a village can support with given template
-function calculateMaxAttacks(availableUnits, template){
-if(!template || !template.units) return 0;
-  
-var mode = template.mode;
-var config = template.units;
-var maxAttacks = Infinity;
-  
-for(var unitType in config){
-var required = config[unitType];
-if(!required || required === 0) continue;
-    
-var available = availableUnits[unitType] || 0;
-var possibleAttacks = 0;
-    
-if(mode === 'send'){
-// Need exactly 'required' units per attack
-possibleAttacks = Math.floor(available / required);
-} else if(mode === 'keep'){
-// Need to keep 'required' at home, send the rest
-var canSend = Math.max(0, available - required);
-possibleAttacks = canSend > 0 ? Infinity : 0;
-}
-    
-maxAttacks = Math.min(maxAttacks, possibleAttacks);
-}
-  
-return maxAttacks === Infinity ? 0 : maxAttacks;
-}
-
-// Attack Plan functions
-var attackPlanGroups = {};
-
-
-function parseAttackPlan(text){
-console.log('Parsing attack plan, text length:', text.length);
-var lines = text.split(/\r?\n/).filter(function(l){ return l.trim(); });
-console.log('Lines found:', lines.length);
-var groups = {};
-for(var i=0;i<lines.length;i++){
-var line = lines[i].trim();
-if(!line || line.match(/^-+$/)) continue;
-if(line.match(/Group.*From.*To/i)){
-console.log('Skipping header line');
-continue;
-}
-var parts = line.split(/\s{2,}|\t/);
-console.log('Line parts:', parts);
-if(parts.length < 3) continue;
-var groupNum = parts[0].trim();
-var fromVillage = parts[1].trim();
-var toTarget = parts[2].trim();
-console.log('Parsed:', groupNum, fromVillage, toTarget);
-if(!groupNum.match(/^\d+$/)){
-console.log('Group number invalid:', groupNum);
-continue;
-}
-if(!fromVillage.match(/\d+\|\d+/)){
-console.log('From village invalid:', fromVillage);
-continue;
-}
-if(!toTarget.match(/\d+\|\d+/)){
-console.log('To target invalid:', toTarget);
-continue;
-}
-var launchTime = null;
-if(parts.length >= 6){
-var launchStr = parts[5].trim();
-var dmhms = launchStr.match(/(\d{1,2})\/(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})/);
-if(dmhms){
-var _srv = getCurrentServerTime();
-launchTime = new Date(_srv.getFullYear(), parseInt(dmhms[2])-1, parseInt(dmhms[1]), parseInt(dmhms[3]), parseInt(dmhms[4]), parseInt(dmhms[5]));
-console.log('Launch time:', launchTime);
-} else if(launchStr.match(/\d{4}-\d{2}-\d{2}/)){
-launchTime = new Date(launchStr);
-console.log('Launch time:', launchTime);
-}
-}
-if(!groups[groupNum]){
-groups[groupNum] = {
-attacks: [],
-launchTime: launchTime
-};
-}
-groups[groupNum].attacks.push({
-from: fromVillage,
-to: toTarget
-});
-}
-console.log('Groups parsed:', Object.keys(groups).length, groups);
-return groups;
-}
-
-function parseHTMLAttackPlan(html){
-var parser = new DOMParser();
-var doc = parser.parseFromString(html, 'text/html');
-var rows = doc.querySelectorAll('table tbody tr');
-var groups = {};
-for(var i=0;i<rows.length;i++){
-var cells = rows[i].querySelectorAll('td');
-if(cells.length < 3) continue;
-var groupNum = cells[0].textContent.trim();
-var fromVillage = cells[1].textContent.trim();
-var toTarget = cells[2].textContent.trim();
-if(!groupNum.match(/^\d+$/)) continue;
-if(!fromVillage.match(/\d+\|\d+/)) continue;
-if(!toTarget.match(/\d+\|\d+/)) continue;
-var launchTime = null;
-if(cells.length >= 6){
-var launchStr = cells[5].textContent.trim();
-var dmhms = launchStr.match(/(\d{1,2})\/(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})/);
-if(dmhms){
-var _srv = getCurrentServerTime();
-launchTime = new Date(_srv.getFullYear(), parseInt(dmhms[2])-1, parseInt(dmhms[1]), parseInt(dmhms[3]), parseInt(dmhms[4]), parseInt(dmhms[5]));
-} else if(launchStr.match(/\d{4}-\d{2}-\d{2}/)){
-launchTime = new Date(launchStr);
-}
-}
-if(!groups[groupNum]){
-groups[groupNum] = {
-attacks: [],
-launchTime: launchTime
-};
-}
-groups[groupNum].attacks.push({
-from: fromVillage,
-to: toTarget
-});
-}
-return groups;
-}
-
-function createGroupButtons(){
-attackPlanContainer.innerHTML = '';
-attackPlanContainer.style.display = 'block';
-var groupKeys = Object.keys(attackPlanGroups).sort(function(a,b){ return Number(a) - Number(b); });
-for(var i=0;i<groupKeys.length;i++){
-var groupNum = groupKeys[i];
-var group = attackPlanGroups[groupNum];
-var btnGroup = document.createElement('button');
-btnGroup.className = 'group-btn';
-btnGroup.dataset.group = groupNum;
-btnGroup.style.cssText = 'cursor:pointer;padding:10px 20px;background:#3a5a3a;color:#fff;border:1px solid #4a7a4a;border-radius:4px;font-weight:bold;margin:5px;display:inline-block;min-width:180px;';
-var attackCount = group.attacks.length;
-btnGroup.innerHTML = 'Group ' + groupNum + '<br><span style="font-size:11px;">(' + attackCount + ' attack' + (attackCount > 1 ? 's' : '') + ')</span>';
-if(group.launchTime){
-var now = getCurrentServerTime();
-var isExpired = group.launchTime <= now;
-var countdownSpan = document.createElement('span');
-countdownSpan.className = 'countdown';
-countdownSpan.style.cssText = 'font-size:10px;display:block;margin-top:4px;';
-if(isExpired){
-countdownSpan.textContent = 'LAUNCH EXCEEDED';
-countdownSpan.style.color = '#ff4444';
-countdownSpan.style.fontWeight = 'bold';
-} else {
-countdownSpan.textContent = 'Calculating...';
-countdownSpan.style.color = '#aaffaa';
-}
-btnGroup.appendChild(document.createElement('br'));
-btnGroup.appendChild(countdownSpan);
-}
-btnGroup.onclick = (function(grp){
-return function(){
-openGroupAttacks(grp);
-};
-})(group);
-attackPlanContainer.appendChild(btnGroup);
-}
-startCountdowns();
-}
-
-function startCountdowns(){
-if(window._countdownInterval){
-clearInterval(window._countdownInterval);
-}
-window._countdownInterval = setInterval(function(){
-var countdowns = document.querySelectorAll('.countdown');
-for(var i=0;i<countdowns.length;i++){
-var btn = countdowns[i].closest('.group-btn');
-if(!btn) continue;
-var groupNum = btn.dataset.group;
-var group = attackPlanGroups[groupNum];
-if(!group || !group.launchTime) continue;
-var now = getCurrentServerTime();
-var diff = group.launchTime - now;
-if(diff <= 0){
-countdowns[i].textContent = 'LAUNCH EXCEEDED';
-countdowns[i].style.color = '#ff4444';
-countdowns[i].style.fontWeight = 'bold';
-continue;
-}
-var hours = Math.floor(diff / 3600000);
-var minutes = Math.floor((diff % 3600000) / 60000);
-var seconds = Math.floor((diff % 60000) / 1000);
-countdowns[i].textContent = hours + 'h ' + minutes + 'm ' + seconds + 's';
-countdowns[i].style.color = '#aaffaa';
-}
-}, 1000);
-}
-
-function openGroupAttacks(group){
-var attacks = group.attacks;
-var urls = [];
-for(var i=0;i<attacks.length;i++){
-var fromId = coordToVillageId(attacks[i].from);
-var toId = coordToVillageId(attacks[i].to);
-if(!fromId || !toId){
-console.log('Could not find village ID for', attacks[i].from, '->', attacks[i].to);
-continue;
-}
-var url = buildRallyUrlWithTemplate(fromId, toId);
-urls.push(url);
-}
-if(urls.length === 0){
-showMessage('No valid attacks in this group');
-return;
-}
-showMessage('Opening ' + urls.length + ' tabs for group...');
-var _blocked = false;
-for(var j=0;j<urls.length;j++){
-(function(url, idx){
-window.setTimeout(function(){
-var w = window.open(url, '_blank');
-if((!w || w.closed) && !_blocked){
-_blocked = true;
-showHelp('Popups Blocked',
-'Your browser is blocking Rally Opener from opening tabs.<br><br>' +
-'<b>To fix:</b><br>' +
-'1. Look for the popup blocked icon in your browser\'s address bar (usually on the right).<br>' +
-'2. Click it and select <i>Always allow popups from this site</i>.<br>' +
-'3. Click <i>Open Tabs</i> again.');
-}
-}, 200 * idx);
-})(urls[j], j);
-}
-}
-
-// Button handlers
-btnOpenTabs.onclick = function(){
-console.log('Open Tabs clicked');
-  
-var fromCoords;
-var toCoords = parseCoordinateList(toTextarea.value);
-  
-// Check if "Use current group" is enabled
-if(useGroupCheckbox.checked){
-console.log('Using current group for FROM coordinates');
-var groupVillages = getVillagesFromCurrentGroup();
-if(groupVillages.length === 0){
-showMessage('No villages found in current group');
-return;
-}
-fromCoords = groupVillages.map(function(v){ return v.coord; });
-console.log('From group coords:', fromCoords);
-} else {
-fromCoords = parseCoordinateList(fromTextarea.value);
-console.log('From manual coords:', fromCoords);
-}
-  
-console.log('To coords:', toCoords);
-  
-if(fromCoords.length === 0 || toCoords.length === 0){ 
-showMessage('Please enter coordinates in both FROM and TO columns'); 
-return; 
-}
-  
-var preparedUrls = prepareTabsFromPairs(fromCoords, toCoords);
-console.log('PreparedUrls:', preparedUrls.length);
-if(preparedUrls.length === 0){
-return;
-}
-
-showMessage('Opening ' + preparedUrls.length + ' tabs...');
-var _blocked = false;
-for(var j=0;j<preparedUrls.length;j++){
-(function(url, idx){
-window.setTimeout(function(){
-var w = window.open(url, '_blank');
-if((!w || w.closed) && !_blocked){
-_blocked = true;
-showHelp('Popups Blocked',
-'Your browser is blocking Rally Opener from opening tabs.<br><br>' +
-'<b>To fix:</b><br>' +
-'1. Look for the popup blocked icon in your browser\'s address bar (usually on the right).<br>' +
-'2. Click it and select <i>Always allow popups from this site</i>.<br>' +
-'3. Click <i>Open Tabs</i> again.');
-}
-}, 200 * idx);
-})(preparedUrls[j], j);
-}
-};
-
-btnTestData.onclick = function(){
-fromTextarea.value = '531|537\n531|537';
-toTextarea.value = '534|534\n537|536';
-showMessage('Test data loaded');
-};
-
-btnPasteAttackPlan.onclick = function(){
-var pasteArea = prompt('Paste your attack plan (ASCII or copied from HTML table):');
-if(!pasteArea) return;
-try{
-attackPlanGroups = parseAttackPlan(pasteArea);
-if(Object.keys(attackPlanGroups).length === 0){
-showMessage('No valid groups found in attack plan');
-return;
-}
-createGroupButtons();
-showMessage('Loaded ' + Object.keys(attackPlanGroups).length + ' groups from attack plan');
-}catch(e){
-showMessage('Error parsing attack plan: ' + e.message);
-console.error(e);
-}
-};
-
-showMessage('Rally Opener ready!');
-
-} // End of page check
-
-}
+} // end guard
