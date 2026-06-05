@@ -7,7 +7,6 @@
     members_troops:    'Member Troops',
     members_buildings: 'Member Buildings',
     members_defense:   'Member Defense',
-    all_modes:         'All Modes',
   };
 
   // Fallback column order — used only if header detection fails
@@ -554,6 +553,14 @@
     label.append(radio, document.createTextNode(MODES[mode]));
     modeRow.appendChild(label);
   });
+  // All Modes — not a real TW page mode, so kept out of MODES to avoid nav button issues
+  {
+    const label = el('label', { style: 'display:flex;align-items:center;gap:5px;cursor:pointer;padding:6px 12px;background:#1a1a1a;border:1px solid #4a3a1a;border-radius:4px;font-size:12px;color:#cc9;' });
+    const radio = el('input', { type: 'radio', name: 'extract_mode', value: 'all_modes', style: 'cursor:pointer;' });
+    modeRadios['all_modes'] = radio;
+    label.append(radio, document.createTextNode('All Modes'));
+    modeRow.appendChild(label);
+  }
 
   // Fetch controls
   const fetchRow = el('div', { style: 'display:flex;gap:8px;justify-content:center;align-items:center;margin-bottom:10px;flex-wrap:wrap;' });
