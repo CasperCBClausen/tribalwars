@@ -65,10 +65,11 @@
   const isKnownMode   = currentMode in MODES;
 
   function buildAllyUrl(mode, playerId) {
-    const u = new URL(window.location.origin + window.location.pathname);
+    const u = new URL(window.location.href); // preserve village + any other TW session params
     u.searchParams.set('screen', 'ally');
     u.searchParams.set('mode', mode);
     if (playerId) u.searchParams.set('player_id', playerId);
+    else u.searchParams.delete('player_id');
     return u.toString();
   }
 
@@ -597,7 +598,7 @@
           rows = result.rows;
         }
         allRawRows.push(...rows);
-        progressBox.textContent = '(' + (i + 1) + '/' + selected.length + ') ✓ ' + m.name + ' — ' + rows.length + ' rows';
+        progressBox.textContent = '(' + (i + 1) + '/' + selected.length + ') ' + (rows.length ? '✓' : '⚠') + ' ' + m.name + ' — ' + rows.length + ' row(s)' + (rows.length === 0 ? ' (no table found on page)' : '');
       } catch (e) {
         errors.push(m.name + ': ' + e.message);
         progressBox.textContent = '(' + (i + 1) + '/' + selected.length + ') ✗ ' + m.name + ' — ' + e.message;
