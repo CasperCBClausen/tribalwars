@@ -183,15 +183,20 @@
   /* ── Generic Unit Table Parser (for Buildings until structure confirmed) ── */
 
   function findUnitTable(doc) {
-    // Find the Spear fighter image (always present in unit tables) then walk up to its table
+    // Troops/defense: find by Spear fighter image
     const spearImg = doc.querySelector('img[data-title="Spear fighter"]');
     if (spearImg) return spearImg.closest('table');
-    // Fallback: any table with a unit image header
+    // Buildings and other pages: find table.vis.w100 inside content area
     const area = doc.getElementById('content_value') || doc.body;
-    for (const t of area.querySelectorAll('table')) {
-      if (t.querySelector('img[data-title]')) return t;
-    }
-    return null;
+    const visTbl = area.querySelector('table.vis.w100');
+    if (visTbl) return visTbl;
+    // Final fallback: table with the most img[data-title] header columns
+    let best = null, bestCols = 0;
+    area.querySelectorAll('table').forEach(t => {
+      const cols = t.querySelectorAll('th img[data-title]').length;
+      if (cols > bestCols) { bestCols = cols; best = t; }
+    });
+    return best;
   }
 
   function readUnitTableHeaders(table) {
@@ -208,24 +213,17 @@
     if (!table) return { headers: [], rows: [] };
     const headers = readUnitTableHeaders(table);
     const rows = [];
-    let village = '', coords = '', points = 0;
 
     table.querySelectorAll('tbody tr').forEach(tr => {
       const cells = Array.from(tr.querySelectorAll('td'));
       if (!cells.length) return;
-      if (cells.length > 14) {
-        const anchor = cells[0].querySelector('a');
-        village = anchor ? anchor.textContent.trim() : cells[0].textContent.trim();
-        coords  = extractCoords(village);
-        points  = cellInt(cells[1]);
-        const label = cells[2].textContent.trim();
-        const data  = cells.slice(3).map(c => c.textContent.trim());
-        rows.push({ player_name: player.name, player_id: player.id, village, coords, points, label, data });
-      } else {
-        const label = cells[0].textContent.trim();
-        const data  = cells.slice(1).map(c => c.textContent.trim());
-        rows.push({ player_name: player.name, player_id: player.id, village, coords, points, label, data });
-      }
+      const anchor = cells[0].querySelector('a');
+      if (!anchor && !/\(\d+\|\d+\)/.test(cells[0].textContent)) return; // skip non-village rows
+      const village = anchor ? anchor.textContent.trim() : cells[0].textContent.trim();
+      const coords  = extractCoords(village);
+      const points  = cellInt(cells[1]);
+      const data    = cells.slice(2).map(c => c.textContent.trim());
+      rows.push({ player_name: player.name, player_id: player.id, village, coords, points, data });
     });
 
     return { headers, rows };
@@ -272,9 +270,9 @@
   }
 
   function genericToCSV(headers, rows) {
-    const lines = [['player_name', 'player_id', 'village', 'coords', 'points', 'label', ...headers].map(escapeCSV).join(',')];
+    const lines = [['player_name', 'player_id', 'village', 'coords', 'points', ...headers].map(escapeCSV).join(',')];
     rows.forEach(r => {
-      const vals = [r.player_name, r.player_id, r.village, r.coords, r.points, r.label, ...r.data];
+      const vals = [r.player_name, r.player_id, r.village, r.coords, r.points, ...r.data];
       lines.push(vals.map(escapeCSV).join(','));
     });
     return lines.join('\n');
@@ -602,6 +600,7 @@
 
     const allRawRows = [];
     const errors     = [];
+    let genericHeaders = [];
 
     const diagLines = [];
 
@@ -621,6 +620,7 @@
         } else {
           const result = parseGenericUnitPage(doc, m);
           rows = result.rows;
+          if (result.headers.length && !genericHeaders.length) genericHeaders = result.headers;
         }
         allRawRows.push(...rows);
         const diag = (rows.length ? '✓' : '⚠') + ' ' + m.name + ' — ' + rows.length + ' row(s) | tables in page: ' + tableCount + ' | unit table: ' + (unitTable ? 'found' : 'NOT FOUND');
@@ -662,10 +662,19 @@
       ).join('\n');
       resultsOutput.textContent = 'player        coords      pts    out  in   spear  sword\n' + preview + (allRawRows.length > 10 ? '\n... (' + (allRawRows.length - 10) + ' more)' : '');
     } else {
-      // Generic mode (buildings) — raw rows
-      lastCSV = genericToCSV([], allRawRows);
-      resultsSummary.textContent = allRawRows.length + ' row(s) extracted from ' + mode;
-      resultsOutput.textContent = allRawRows.slice(0, 10).map(r => r.player_name + ' | ' + r.village + ' | ' + r.label + ' | ' + r.data.join(', ')).join('\n');
+      // Generic mode (buildings)
+      lastCSV  = genericToCSV(genericHeaders, allRawRows);
+      lastJSON = JSON.stringify(allRawRows.map(r => {
+        const obj = { player_name: r.player_name, player_id: r.player_id, village: r.village, coords: r.coords, points: r.points };
+        genericHeaders.forEach((h, i) => { obj[h] = r.data[i] || ''; });
+        return obj;
+      }), null, 2);
+      const totalVillages = allRawRows.length;
+      const totalMembers  = new Set(allRawRows.map(r => r.player_id)).size;
+      resultsSummary.textContent = totalMembers + ' member(s) — ' + totalVillages + ' village(s)';
+      resultsOutput.textContent = allRawRows.slice(0, 10).map(r =>
+        r.player_name.padEnd(12) + '  ' + (r.coords || '').padEnd(9) + '  pts:' + String(r.points).padEnd(5) + '  ' + r.data.slice(0, 5).join('  ')
+      ).join('\n') + (allRawRows.length > 10 ? '\n... (' + (allRawRows.length - 10) + ' more)' : '');
     }
 
     ensureExpanded(resultsContent, resultsCollapseBtn);
