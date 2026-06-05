@@ -183,9 +183,13 @@
   /* ── Generic Unit Table Parser (for Buildings until structure confirmed) ── */
 
   function findUnitTable(doc) {
+    // Find the Spear fighter image (always present in unit tables) then walk up to its table
+    const spearImg = doc.querySelector('img[data-title="Spear fighter"]');
+    if (spearImg) return spearImg.closest('table');
+    // Fallback: any table with a unit image header
     const area = doc.getElementById('content_value') || doc.body;
     for (const t of area.querySelectorAll('table')) {
-      if (t.querySelector('th img[data-title]')) return t;
+      if (t.querySelector('img[data-title]')) return t;
     }
     return null;
   }
@@ -279,7 +283,10 @@
   /* ── Message System ── */
 
   let msgBox;
+  const messageHistory = [];
+
   function showMessage(msg, timeout) {
+    messageHistory.push({ text: msg, time: new Date() });
     if (!msgBox) return;
     msgBox.textContent = msg;
     if (msgBox._t) clearTimeout(msgBox._t);
@@ -491,8 +498,21 @@
   body.appendChild(discoverSection);
 
   // ── Message Box ──
-  msgBox = el('div', { style: 'color:#9f9f9f;min-height:18px;text-align:center;padding:5px;background:#0a0a0a;border-radius:4px;border:1px solid #2a2a2a;' });
+  msgBox = el('div', { style: 'color:#9f9f9f;min-height:18px;text-align:center;padding:5px;background:#0a0a0a;border-radius:4px;border:1px solid #2a2a2a;cursor:pointer;', title: 'Click to view message history' });
   body.appendChild(msgBox);
+
+  // ── Message History Overlay ──
+  const msgHistoryOverlay  = el('div', { style: 'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:200000;display:none;align-items:center;justify-content:center;' });
+  const msgHistoryContent  = el('div', { style: 'background:#1a1a1a;color:#fff;padding:20px;border-radius:8px;border:2px solid #444;max-width:480px;width:90%;max-height:60vh;display:flex;flex-direction:column;' });
+  const msgHistoryTitle    = el('div', { style: 'font-size:16px;font-weight:bold;margin-bottom:12px;color:#e0e0e0;flex-shrink:0;' });
+  msgHistoryTitle.textContent = 'Message History';
+  const msgHistoryList     = el('div', { style: 'overflow-y:auto;flex:1;' });
+  const msgHistoryCloseRow = el('div', { style: 'display:flex;justify-content:center;margin-top:12px;flex-shrink:0;' });
+  const msgHistoryCloseBtn = el('button', { innerText: 'Close', type: 'button', style: 'cursor:pointer;padding:8px 24px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;' });
+  msgHistoryCloseRow.appendChild(msgHistoryCloseBtn);
+  msgHistoryContent.append(msgHistoryTitle, msgHistoryList, msgHistoryCloseRow);
+  msgHistoryOverlay.appendChild(msgHistoryContent);
+  document.body.appendChild(msgHistoryOverlay);
 
   // ── Footer ──
   const footer = el('div', { style: 'padding:10px;background:linear-gradient(135deg,#1a1a1a 0%,#0a0a0a 100%);border-bottom-left-radius:6px;border-bottom-right-radius:6px;border-top:2px solid #444;text-align:center;flex-shrink:0;' });
@@ -583,11 +603,16 @@
     const allRawRows = [];
     const errors     = [];
 
+    const diagLines = [];
+
     for (let i = 0; i < selected.length; i++) {
-      const m = selected[i];
-      progressBox.textContent = '(' + (i + 1) + '/' + selected.length + ') Fetching: ' + m.name + ' ...';
+      const m       = selected[i];
+      const fetchUrl = buildAllyUrl(mode, m.id);
+      progressBox.textContent = '(' + (i + 1) + '/' + selected.length + ') Fetching: ' + m.name + '...';
       try {
-        const doc  = await fetchPlayerPage(mode, m.id);
+        const doc    = await fetchPlayerPage(mode, m.id);
+        const tableCount = doc.querySelectorAll('table').length;
+        const unitTable  = findUnitTable(doc);
         let rows;
         if (mode === 'members_defense') {
           rows = parseDefensePage(doc, m);
@@ -598,16 +623,21 @@
           rows = result.rows;
         }
         allRawRows.push(...rows);
-        progressBox.textContent = '(' + (i + 1) + '/' + selected.length + ') ' + (rows.length ? '✓' : '⚠') + ' ' + m.name + ' — ' + rows.length + ' row(s)' + (rows.length === 0 ? ' (no table found on page)' : '');
+        const diag = (rows.length ? '✓' : '⚠') + ' ' + m.name + ' — ' + rows.length + ' row(s) | tables in page: ' + tableCount + ' | unit table: ' + (unitTable ? 'found' : 'NOT FOUND');
+        diagLines.push('URL: ' + fetchUrl);
+        diagLines.push(diag);
+        progressBox.textContent = diag;
       } catch (e) {
         errors.push(m.name + ': ' + e.message);
+        diagLines.push('✗ ' + m.name + ': ' + e.message);
         progressBox.textContent = '(' + (i + 1) + '/' + selected.length + ') ✗ ' + m.name + ' — ' + e.message;
       }
       if (i < selected.length - 1) await sleep(FETCH_DELAY_MS);
     }
 
-    progressBox.textContent = 'Done — ' + selected.length + ' member(s) fetched' + (errors.length ? ', ' + errors.length + ' error(s)' : '') + '.';
-    if (errors.length) progressBox.textContent += '\nErrors: ' + errors.join('; ');
+    diagLines.push('──');
+    diagLines.push('Done — ' + selected.length + ' fetched, ' + allRawRows.length + ' total rows' + (errors.length ? ', ' + errors.length + ' error(s)' : ''));
+    progressBox.textContent = diagLines.join('\n');
 
     // Build results
     if (mode === 'members_defense') {
@@ -703,6 +733,22 @@
   })();
 
   closeBtn.addEventListener('click', () => container.remove());
+
+  // Message history
+  msgBox.addEventListener('click', () => {
+    msgHistoryList.innerHTML = messageHistory.length === 0
+      ? '<div style="color:#888;padding:8px;">No messages yet</div>'
+      : messageHistory.slice().reverse().map(e => {
+          const t  = e.time;
+          const ts = ('0' + t.getHours()).slice(-2) + ':' + ('0' + t.getMinutes()).slice(-2) + ':' + ('0' + t.getSeconds()).slice(-2);
+          return '<div style="padding:6px 4px;border-bottom:1px solid #2a2a2a;font-size:12px;">' +
+            '<span style="color:#555;margin-right:8px;">' + ts + '</span>' +
+            '<span style="color:#ddd;">' + e.text + '</span></div>';
+        }).join('');
+    msgHistoryOverlay.style.display = 'flex';
+  });
+  msgHistoryCloseBtn.addEventListener('click', () => { msgHistoryOverlay.style.display = 'none'; });
+  msgHistoryOverlay.addEventListener('click', e => { if (e.target === msgHistoryOverlay) msgHistoryOverlay.style.display = 'none'; });
 
   navCollapseBtn.onclick      = makeCollapseHandler(navContent,      navCollapseBtn);
   membersCollapseBtn.onclick  = makeCollapseHandler(membersContent,  membersCollapseBtn);
