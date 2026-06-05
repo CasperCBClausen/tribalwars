@@ -812,75 +812,154 @@
       return section;
     }
 
-    selectedModes.forEach(mode => {
-      if (mode === 'members_troops') {
-        const activeIdx = unitNames.map((_, i) => i).filter(i => troopRows.some(r => (r.units[i] || 0) > 0));
-        outer.appendChild(makeSection(MODES[mode], t => {
-          const thead = el('thead'), tbody = el('tbody'), hr = el('tr');
-          hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'), mkthImg('Active cmds', activeCmdSrc), mkthImg('Incoming', incomingSrc));
-          activeIdx.forEach(j => hr.append(mkthImg(unitNames[j], unitImgSrcs[j])));
-          thead.appendChild(hr);
-          troopRows.forEach((r, i) => {
-            const tr = el('tr', { style: rBg(i) });
-            tr.append(mktdV(r.village), mktd(r.coords), mktd(r.points), mktd(r.active_commands), mktd(r.incoming));
-            activeIdx.forEach(j => tr.append(mktd(r.units[j] || 0)));
-            tbody.appendChild(tr);
-          });
-          if (!troopRows.length) tbody.innerHTML = '<tr><td colspan="' + (5 + activeIdx.length) + '" style="color:#555;padding:6px 8px;">No troop data</td></tr>';
-          t.append(thead, tbody);
-        }));
+    const hasTroops  = selectedModes.includes('members_troops');
+    const hasDefense = selectedModes.includes('members_defense');
+    const hasBldg    = selectedModes.includes('members_buildings');
 
-      } else if (mode === 'members_defense') {
-        const activeIdx = unitNames.map((_, i) => i).filter(i => defFlat.some(r => (r.in_village[i] || 0) > 0 || (r.enroute[i] || 0) > 0));
-        outer.appendChild(makeSection(MODES[mode], t => {
-          const thead = el('thead'), tbody = el('tbody'), hr = el('tr');
-          hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'), mkth('Inc'), mkth(''));
-          activeIdx.forEach(j => hr.append(mkthImg(unitNames[j], unitImgSrcs[j])));
-          thead.appendChild(hr);
-          defFlat.forEach((r, i) => {
-            const bg = rBg(i);
+    function mkPill(text, bg, color) {
+      const s = el('span', { style: 'display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;background:' + bg + ';color:' + color + ';font-weight:bold;white-space:nowrap;' });
+      s.textContent = text; return s;
+    }
+    function mkLblTd(pill, borderColor) {
+      const tc = el('td', { style: 'padding:2px 6px;border-bottom:1px solid ' + borderColor + ';text-align:left;vertical-align:middle;white-space:nowrap;' });
+      tc.appendChild(pill); return tc;
+    }
+
+    if (hasTroops && hasDefense) {
+      // ── Merged Troops + Defense ──
+      const activeIdx = unitNames.map((_, i) => i).filter(i =>
+        troopRows.some(r => (r.units[i] || 0) > 0) ||
+        defFlat.some(r => (r.in_village[i] || 0) > 0 || (r.enroute[i] || 0) > 0)
+      );
+      const troopMap = new Map(troopRows.map(r => [r.village + '|' + r.coords, r]));
+      const defMap   = new Map(defFlat.map(r =>  [r.village + '|' + r.coords, r]));
+      const orderedKeys = [
+        ...troopRows.map(r => r.village + '|' + r.coords),
+        ...defFlat.filter(r => !troopMap.has(r.village + '|' + r.coords)).map(r => r.village + '|' + r.coords),
+      ];
+
+      outer.appendChild(makeSection('Troops & Defense', t => {
+        const thead = el('thead'), tbody = el('tbody'), hr = el('tr');
+        hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'), mkthImg('Active cmds', activeCmdSrc), mkthImg('Incoming', incomingSrc), mkth(''));
+        activeIdx.forEach(j => hr.append(mkthImg(unitNames[j], unitImgSrcs[j])));
+        thead.appendChild(hr);
+
+        orderedKeys.forEach((key, i) => {
+          const tp  = troopMap.get(key);
+          const df  = defMap.get(key);
+          const hasTp = !!tp, hasDf = !!df;
+          const rowCount  = (hasTp ? 1 : 0) + (hasDf ? 2 : 0);
+          const bg        = rBg(i);
+          const src       = tp || df;
+          const incoming  = tp ? tp.incoming : df.incoming;
+          const active    = tp ? tp.active_commands : 0;
+          const grpBorder = '#2c2c2c';
+          const rowBorder = '#181818';
+
+          const tdV = el('td', { rowSpan: rowCount, style: tdVill + 'border-bottom:1px solid ' + grpBorder + ';', title: src.village }); tdV.textContent = src.village;
+          const tdC = el('td', { rowSpan: rowCount, style: tdS + 'border-bottom:1px solid ' + grpBorder + ';' }); tdC.textContent = src.coords;
+          const tdP = el('td', { rowSpan: rowCount, style: tdS + 'border-bottom:1px solid ' + grpBorder + ';' }); tdP.textContent = src.points;
+          const tdA = el('td', { rowSpan: rowCount, style: tdS + 'border-bottom:1px solid ' + grpBorder + ';' }); tdA.textContent = active;
+          const tdI = el('td', { rowSpan: rowCount, style: tdS + 'border-bottom:1px solid ' + grpBorder + ';' }); tdI.textContent = incoming;
+
+          if (hasTp) {
             const tr1 = el('tr', { style: bg });
-            const tdV = el('td', { rowSpan: 2, style: tdVill, title: r.village }); tdV.textContent = r.village; tr1.appendChild(tdV);
-            const tdC = el('td', { rowSpan: 2, style: tdS });  tdC.textContent = r.coords;   tr1.appendChild(tdC);
-            const tdP = el('td', { rowSpan: 2, style: tdS });  tdP.textContent = r.points;   tr1.appendChild(tdP);
-            const tdI = el('td', { rowSpan: 2, style: tdS });  tdI.textContent = r.incoming; tr1.appendChild(tdI);
-            const lbl1 = el('td', { style: 'padding:2px 6px;border-bottom:1px solid #181818;text-align:left;vertical-align:middle;white-space:nowrap;' });
-            const pill1 = el('span', { style: 'display:inline-block;padding:1px 5px;border-radius:3px;font-size:10px;background:#0e2318;color:#4a9;font-weight:bold;' });
-            pill1.textContent = 'in village'; lbl1.appendChild(pill1); tr1.appendChild(lbl1);
-            activeIdx.forEach(j => tr1.append(mktd(r.in_village[j] || 0)));
-            tbody.appendChild(tr1);
-            const tr2 = el('tr', { style: bg });
-            const lbl2 = el('td', { style: 'padding:2px 6px;border-bottom:1px solid #222;text-align:left;vertical-align:middle;white-space:nowrap;' });
-            const pill2 = el('span', { style: 'display:inline-block;padding:1px 5px;border-radius:3px;font-size:10px;background:#2a1505;color:#c84;font-weight:bold;' });
-            pill2.textContent = 'en route'; lbl2.appendChild(pill2); tr2.appendChild(lbl2);
+            tr1.append(tdV, tdC, tdP, tdA, tdI);
+            tr1.appendChild(mkLblTd(mkPill('troops', '#1a1a2e', '#88c'), hasDf ? rowBorder : grpBorder));
             activeIdx.forEach(j => {
-              const td = mktd(r.enroute[j] || 0);
-              td.style.borderBottom = '1px solid #222';
-              tr2.appendChild(td);
+              const tc = mktd(tp.units[j] || 0);
+              if (!hasDf) tc.style.borderBottom = '1px solid ' + grpBorder;
+              tr1.appendChild(tc);
             });
-            tbody.appendChild(tr2);
-          });
-          if (!defFlat.length) tbody.innerHTML = '<tr><td colspan="' + (5 + activeIdx.length) + '" style="color:#555;padding:6px 8px;">No defense data</td></tr>';
-          t.append(thead, tbody);
-        }));
+            tbody.appendChild(tr1);
+          }
 
-      } else if (mode === 'members_buildings') {
-        outer.appendChild(makeSection(MODES[mode], t => {
-          const thead = el('thead'), tbody = el('tbody'), hr = el('tr');
-          hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'));
-          buildingHeaders.forEach((h, i) => hr.append(mkthImg(h, (buildingImgSrcs || [])[i] || '')));
-          thead.appendChild(hr);
-          bldgRows.forEach((r, i) => {
-            const tr = el('tr', { style: rBg(i) });
-            tr.append(mktdV(r.village), mktd(r.coords), mktd(r.points));
-            r.data.forEach(v => tr.append(mktd(v)));
-            tbody.appendChild(tr);
+          if (hasDf) {
+            const tr2 = el('tr', { style: bg });
+            if (!hasTp) tr2.append(tdV, tdC, tdP, tdA, tdI);
+            tr2.appendChild(mkLblTd(mkPill('in village', '#0e2318', '#4a9'), rowBorder));
+            activeIdx.forEach(j => tr2.append(mktd(df.in_village[j] || 0)));
+            tbody.appendChild(tr2);
+
+            const tr3 = el('tr', { style: bg });
+            tr3.appendChild(mkLblTd(mkPill('en route', '#2a1505', '#c84'), grpBorder));
+            activeIdx.forEach(j => {
+              const tc = mktd(df.enroute[j] || 0);
+              tc.style.borderBottom = '1px solid ' + grpBorder;
+              tr3.appendChild(tc);
+            });
+            tbody.appendChild(tr3);
+          }
+        });
+
+        if (!orderedKeys.length) tbody.innerHTML = '<tr><td colspan="' + (6 + activeIdx.length) + '" style="color:#555;padding:6px 8px;">No data</td></tr>';
+        t.append(thead, tbody);
+      }));
+
+    } else if (hasTroops) {
+      const activeIdx = unitNames.map((_, i) => i).filter(i => troopRows.some(r => (r.units[i] || 0) > 0));
+      outer.appendChild(makeSection(MODES['members_troops'], t => {
+        const thead = el('thead'), tbody = el('tbody'), hr = el('tr');
+        hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'), mkthImg('Active cmds', activeCmdSrc), mkthImg('Incoming', incomingSrc));
+        activeIdx.forEach(j => hr.append(mkthImg(unitNames[j], unitImgSrcs[j])));
+        thead.appendChild(hr);
+        troopRows.forEach((r, i) => {
+          const tr = el('tr', { style: rBg(i) });
+          tr.append(mktdV(r.village), mktd(r.coords), mktd(r.points), mktd(r.active_commands), mktd(r.incoming));
+          activeIdx.forEach(j => tr.append(mktd(r.units[j] || 0)));
+          tbody.appendChild(tr);
+        });
+        if (!troopRows.length) tbody.innerHTML = '<tr><td colspan="' + (5 + activeIdx.length) + '" style="color:#555;padding:6px 8px;">No troop data</td></tr>';
+        t.append(thead, tbody);
+      }));
+
+    } else if (hasDefense) {
+      const activeIdx = unitNames.map((_, i) => i).filter(i => defFlat.some(r => (r.in_village[i] || 0) > 0 || (r.enroute[i] || 0) > 0));
+      outer.appendChild(makeSection(MODES['members_defense'], t => {
+        const thead = el('thead'), tbody = el('tbody'), hr = el('tr');
+        hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'), mkth('Inc'), mkth(''));
+        activeIdx.forEach(j => hr.append(mkthImg(unitNames[j], unitImgSrcs[j])));
+        thead.appendChild(hr);
+        defFlat.forEach((r, i) => {
+          const bg = rBg(i);
+          const tr1 = el('tr', { style: bg });
+          const tdV = el('td', { rowSpan: 2, style: tdVill, title: r.village }); tdV.textContent = r.village; tr1.appendChild(tdV);
+          const tdC = el('td', { rowSpan: 2, style: tdS });  tdC.textContent = r.coords;   tr1.appendChild(tdC);
+          const tdP = el('td', { rowSpan: 2, style: tdS });  tdP.textContent = r.points;   tr1.appendChild(tdP);
+          const tdI = el('td', { rowSpan: 2, style: tdS });  tdI.textContent = r.incoming; tr1.appendChild(tdI);
+          tr1.appendChild(mkLblTd(mkPill('in village', '#0e2318', '#4a9'), '#181818'));
+          activeIdx.forEach(j => tr1.append(mktd(r.in_village[j] || 0)));
+          tbody.appendChild(tr1);
+          const tr2 = el('tr', { style: bg });
+          tr2.appendChild(mkLblTd(mkPill('en route', '#2a1505', '#c84'), '#222'));
+          activeIdx.forEach(j => {
+            const tc = mktd(r.enroute[j] || 0);
+            tc.style.borderBottom = '1px solid #222';
+            tr2.appendChild(tc);
           });
-          if (!bldgRows.length) tbody.innerHTML = '<tr><td colspan="' + (3 + buildingHeaders.length) + '" style="color:#555;padding:6px 8px;">No building data</td></tr>';
-          t.append(thead, tbody);
-        }));
-      }
-    });
+          tbody.appendChild(tr2);
+        });
+        if (!defFlat.length) tbody.innerHTML = '<tr><td colspan="' + (5 + activeIdx.length) + '" style="color:#555;padding:6px 8px;">No defense data</td></tr>';
+        t.append(thead, tbody);
+      }));
+    }
+
+    if (hasBldg) {
+      outer.appendChild(makeSection(MODES['members_buildings'], t => {
+        const thead = el('thead'), tbody = el('tbody'), hr = el('tr');
+        hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'));
+        buildingHeaders.forEach((h, i) => hr.append(mkthImg(h, (buildingImgSrcs || [])[i] || '')));
+        thead.appendChild(hr);
+        bldgRows.forEach((r, i) => {
+          const tr = el('tr', { style: rBg(i) });
+          tr.append(mktdV(r.village), mktd(r.coords), mktd(r.points));
+          r.data.forEach(v => tr.append(mktd(v)));
+          tbody.appendChild(tr);
+        });
+        if (!bldgRows.length) tbody.innerHTML = '<tr><td colspan="' + (3 + buildingHeaders.length) + '" style="color:#555;padding:6px 8px;">No building data</td></tr>';
+        t.append(thead, tbody);
+      }));
+    }
 
     return outer;
   }
