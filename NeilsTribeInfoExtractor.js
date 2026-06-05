@@ -7,6 +7,7 @@
     members_troops:    'Member Troops',
     members_buildings: 'Member Buildings',
     members_defense:   'Member Defense',
+    all_modes:         'All Modes',
   };
 
   // Fallback column order — used only if header detection fails
@@ -306,6 +307,79 @@
     return JSON.stringify(rows.map(r => {
       const obj = { player_name: r.player_name, player_id: r.player_id, village: r.village, coords: r.coords, points: r.points, active_commands: r.active_commands, incoming: r.incoming };
       unitNames.forEach((u, i) => { obj[u] = r.units[i] || 0; });
+      return obj;
+    }), null, 2);
+  }
+
+  function combineAllModes(troopRows, defenseFlat, buildingRows, unitNames, buildingHeaders) {
+    const N = unitNames.length;
+    const B = buildingHeaders.length;
+    const map = new Map();
+    const rowKey = r => r.player_id + '||' + r.village;
+    const ensure = r => {
+      if (!map.has(rowKey(r))) {
+        map.set(rowKey(r), {
+          player_name: r.player_name, player_id: r.player_id,
+          village: r.village, coords: r.coords, points: r.points,
+          active_commands: 0, incoming_attacks: 0,
+          troops:     new Array(N).fill(0),
+          in_village: new Array(N).fill(0),
+          enroute:    new Array(N).fill(0),
+          buildings:  new Array(B).fill(''),
+        });
+      }
+      return map.get(rowKey(r));
+    };
+    troopRows.forEach(r => {
+      const e = ensure(r);
+      e.active_commands  = r.active_commands;
+      e.incoming_attacks = r.incoming;
+      e.troops           = r.units;
+    });
+    defenseFlat.forEach(r => {
+      const e = ensure(r);
+      e.incoming_attacks = r.incoming;
+      e.in_village       = r.in_village;
+      e.enroute          = r.enroute;
+    });
+    buildingRows.forEach(r => {
+      ensure(r).buildings = r.data;
+    });
+    return Array.from(map.values());
+  }
+
+  function combinedToCSV(rows, unitNames, buildingHeaders) {
+    const headers = [
+      'player_name', 'player_id', 'village', 'coords', 'points',
+      'active_commands', 'incoming_attacks',
+      ...unitNames,
+      ...unitNames.map(u => u + '_in_village'),
+      ...unitNames.map(u => u + '_enroute'),
+      ...buildingHeaders,
+    ];
+    const lines = [headers.map(escapeCSV).join(',')];
+    rows.forEach(r => {
+      const vals = [
+        r.player_name, r.player_id, r.village, r.coords, r.points,
+        r.active_commands, r.incoming_attacks,
+        ...r.troops, ...r.in_village, ...r.enroute, ...r.buildings,
+      ];
+      lines.push(vals.map(escapeCSV).join(','));
+    });
+    return lines.join('\n');
+  }
+
+  function combinedToJSON(rows, unitNames, buildingHeaders) {
+    return JSON.stringify(rows.map(r => {
+      const obj = {
+        player_name: r.player_name, player_id: r.player_id,
+        village: r.village, coords: r.coords, points: r.points,
+        active_commands: r.active_commands, incoming_attacks: r.incoming_attacks,
+      };
+      unitNames.forEach((u, i) => { obj[u]                = r.troops[i]     || 0; });
+      unitNames.forEach((u, i) => { obj[u + '_in_village'] = r.in_village[i] || 0; });
+      unitNames.forEach((u, i) => { obj[u + '_enroute']   = r.enroute[i]    || 0; });
+      buildingHeaders.forEach((h, i) => { obj[h] = r.buildings[i] || ''; });
       return obj;
     }), null, 2);
   }
@@ -638,6 +712,61 @@
     lastCSV = ''; lastJSON = '';
     resultsOutput.textContent = '';
     resultsSummary.textContent = '';
+
+    if (mode === 'all_modes') {
+      const errors = [];
+      const subFetch = async (subMode, label) => {
+        const subRows = []; let unitNames = []; let buildingHeaders = [];
+        for (let i = 0; i < selected.length; i++) {
+          const m = selected[i];
+          progressBox.textContent = label + ' (' + (i + 1) + '/' + selected.length + ') ' + m.name + '...';
+          try {
+            const doc = await fetchPlayerPage(subMode, m.id);
+            if (subMode === 'members_troops') {
+              const r = parseTroopsPage(doc, m);
+              subRows.push(...r.rows);
+              if (!unitNames.length && r.unitNames.length) unitNames = r.unitNames;
+            } else if (subMode === 'members_defense') {
+              const r = parseDefensePage(doc, m);
+              subRows.push(...r.rows);
+              if (!unitNames.length && r.unitNames.length) unitNames = r.unitNames;
+            } else {
+              const r = parseGenericUnitPage(doc, m);
+              subRows.push(...r.rows);
+              if (!buildingHeaders.length && r.headers.length) buildingHeaders = r.headers;
+            }
+          } catch (e) { errors.push(label + ' — ' + m.name + ': ' + e.message); }
+          if (i < selected.length - 1) await sleep(FETCH_DELAY_MS);
+        }
+        return { rows: subRows, unitNames, buildingHeaders };
+      };
+
+      const troopsR    = await subFetch('members_troops',    'Troops');
+      const defenseR   = await subFetch('members_defense',   'Defense');
+      const buildingsR = await subFetch('members_buildings', 'Buildings');
+
+      const unitNames       = troopsR.unitNames.length ? troopsR.unitNames : defenseR.unitNames.length ? defenseR.unitNames : UNIT_COLS.slice();
+      const buildingHeaders = buildingsR.buildingHeaders;
+      const defenseFlat     = flattenDefenseRows(defenseR.rows);
+      const combined        = combineAllModes(troopsR.rows, defenseFlat, buildingsR.rows, unitNames, buildingHeaders);
+
+      lastCSV  = combinedToCSV(combined, unitNames, buildingHeaders);
+      lastJSON = combinedToJSON(combined, unitNames, buildingHeaders);
+
+      const totalMembers  = new Set(combined.map(r => r.player_id)).size;
+      progressBox.textContent = 'Done — ' + totalMembers + ' member(s), ' + combined.length + ' village(s), ' + (selected.length * 3) + ' pages fetched' + (errors.length ? ', ' + errors.length + ' error(s)' : '');
+      resultsSummary.textContent = totalMembers + ' member(s) — ' + combined.length + ' village(s)';
+      resultsOutput.textContent = combined.slice(0, 5).map(r =>
+        r.player_name.padEnd(12) + '  ' + (r.coords || '').padEnd(9) + '  pts:' + String(r.points).padEnd(5) +
+        '  spear:' + (r.troops[0] || 0) + '  spear_iv:' + (r.in_village[0] || 0) + '  bldg[0]:' + (r.buildings[0] || '-')
+      ).join('\n') + (combined.length > 5 ? '\n... (' + (combined.length - 5) + ' more)' : '');
+      ensureExpanded(resultsContent, resultsCollapseBtn);
+      showMessage('All modes complete — ' + combined.length + ' villages');
+      btnFetch.disabled = false;
+      btnFetch.textContent = 'Fetch Selected Members';
+      fetchInProgress = false;
+      return;
+    }
 
     const allRawRows = [];
     const errors     = [];
