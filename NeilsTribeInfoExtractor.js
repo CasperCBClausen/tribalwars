@@ -272,11 +272,19 @@
 
   /* ── Export ── */
 
+  function withTimestamp(villages) {
+    return { exported_at: Math.floor(Date.now() / 1000), villages };
+  }
+
+  function csvTimestamp() {
+    return 'exported_at,' + Math.floor(Date.now() / 1000);
+  }
+
   function defenseToCSV(flat, unitNames) {
     const inVillageH = unitNames.map(u => u + '_in_village');
     const enrouteH   = unitNames.map(u => u + '_enroute');
     const headers    = ['player_name', 'player_id', 'village', 'coords', 'points', 'incoming_attacks', ...inVillageH, ...enrouteH];
-    const lines      = [headers.map(escapeCSV).join(',')];
+    const lines      = [csvTimestamp(), headers.map(escapeCSV).join(',')];
     flat.forEach(r => {
       const vals = [r.player_name, r.player_id, r.village, r.coords, r.points, r.incoming, ...r.in_village, ...r.enroute];
       lines.push(vals.map(escapeCSV).join(','));
@@ -285,16 +293,16 @@
   }
 
   function defenseToJSON(flat, unitNames) {
-    return JSON.stringify(flat.map(r => {
+    return JSON.stringify(withTimestamp(flat.map(r => {
       const obj = { player_name: r.player_name, player_id: r.player_id, village: r.village, coords: r.coords, points: r.points, incoming_attacks: r.incoming };
       unitNames.forEach((u, i) => { obj[u + '_in_village'] = r.in_village[i] || 0; obj[u + '_enroute'] = r.enroute[i] || 0; });
       return obj;
-    }), null, 2);
+    })), null, 2);
   }
 
   function troopsToCSV(rows, unitNames) {
     const headers = ['player_name', 'player_id', 'village', 'coords', 'points', 'active_commands', 'incoming', ...unitNames];
-    const lines   = [headers.map(escapeCSV).join(',')];
+    const lines   = [csvTimestamp(), headers.map(escapeCSV).join(',')];
     rows.forEach(r => {
       const vals = [r.player_name, r.player_id, r.village, r.coords, r.points, r.active_commands, r.incoming, ...r.units];
       lines.push(vals.map(escapeCSV).join(','));
@@ -303,11 +311,11 @@
   }
 
   function troopsToJSON(rows, unitNames) {
-    return JSON.stringify(rows.map(r => {
+    return JSON.stringify(withTimestamp(rows.map(r => {
       const obj = { player_name: r.player_name, player_id: r.player_id, village: r.village, coords: r.coords, points: r.points, active_commands: r.active_commands, incoming: r.incoming };
       unitNames.forEach((u, i) => { obj[u] = r.units[i] || 0; });
       return obj;
-    }), null, 2);
+    })), null, 2);
   }
 
   function combineAllModes(troopRows, defenseFlat, buildingRows, unitNames, buildingHeaders) {
@@ -356,7 +364,7 @@
       ...unitNames.map(u => u + '_enroute'),
       ...buildingHeaders,
     ];
-    const lines = [headers.map(escapeCSV).join(',')];
+    const lines = [csvTimestamp(), headers.map(escapeCSV).join(',')];
     rows.forEach(r => {
       const vals = [
         r.player_name, r.player_id, r.village, r.coords, r.points,
@@ -369,7 +377,7 @@
   }
 
   function combinedToJSON(rows, unitNames, buildingHeaders) {
-    return JSON.stringify(rows.map(r => {
+    return JSON.stringify(withTimestamp(rows.map(r => {
       const obj = {
         player_name: r.player_name, player_id: r.player_id,
         village: r.village, coords: r.coords, points: r.points,
@@ -380,11 +388,11 @@
       unitNames.forEach((u, i) => { obj[u + '_enroute']   = r.enroute[i]    || 0; });
       buildingHeaders.forEach((h, i) => { obj[h] = r.buildings[i] || ''; });
       return obj;
-    }), null, 2);
+    })), null, 2);
   }
 
   function genericToCSV(headers, rows) {
-    const lines = [['player_name', 'player_id', 'village', 'coords', 'points', ...headers].map(escapeCSV).join(',')];
+    const lines = [csvTimestamp(), ['player_name', 'player_id', 'village', 'coords', 'points', ...headers].map(escapeCSV).join(',')];
     rows.forEach(r => {
       const vals = [r.player_name, r.player_id, r.village, r.coords, r.points, ...r.data];
       lines.push(vals.map(escapeCSV).join(','));
@@ -847,11 +855,11 @@
     } else {
       // Generic mode (buildings)
       lastCSV  = genericToCSV(genericHeaders, allRawRows);
-      lastJSON = JSON.stringify(allRawRows.map(r => {
+      lastJSON = JSON.stringify(withTimestamp(allRawRows.map(r => {
         const obj = { player_name: r.player_name, player_id: r.player_id, village: r.village, coords: r.coords, points: r.points };
         genericHeaders.forEach((h, i) => { obj[h] = r.data[i] || ''; });
         return obj;
-      }), null, 2);
+      })), null, 2);
       const totalVillages = allRawRows.length;
       const totalMembers  = new Set(allRawRows.map(r => r.player_id)).size;
       resultsSummary.textContent = totalMembers + ' member(s) — ' + totalVillages + ' village(s)';
