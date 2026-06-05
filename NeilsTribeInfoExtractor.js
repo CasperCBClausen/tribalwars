@@ -84,11 +84,11 @@
 
   /* ── Member Detection ── */
 
-  function getMembersFromPage() {
-    const select = document.querySelector('select[name="player_id"]');
+  function getMembersFromDoc(doc) {
+    const select = doc.querySelector('select[name="player_id"]');
     if (!select) return [];
     return Array.from(select.querySelectorAll('option[value]'))
-      .map(opt => ({ id: opt.value.trim(), name: opt.textContent.trim() }))
+      .map(opt => ({ id: String(opt.value).trim(), name: opt.textContent.trim() }))
       .filter(m => m.id && m.name);
   }
 
@@ -502,12 +502,12 @@
   });
 
   const navStatusBar = el('div', { style: 'padding:6px;border-radius:4px;text-align:center;font-size:12px;' +
-    (!isAllyPage || !isKnownMode
-      ? 'background:#1a0f0f;border:1px solid #5a2a2a;color:#ff8888;'
-      : 'background:#0a1a0a;border:1px solid #2a5a2a;color:#6d6;') });
-  navStatusBar.textContent = (!isAllyPage || !isKnownMode)
-    ? 'Navigate to one of the ally pages above to use the extractor.'
-    : '✓ Viewing ' + MODES[currentMode];
+    (isAllyPage && isKnownMode
+      ? 'background:#0a1a0a;border:1px solid #2a5a2a;color:#6d6;'
+      : 'background:#0a0a1a;border:1px solid #2a2a5a;color:#88f;') });
+  navStatusBar.textContent = isAllyPage && isKnownMode
+    ? '✓ Currently viewing ' + MODES[currentMode]
+    : 'Data is fetched automatically — navigation links above are optional shortcuts.';
 
   navContent.append(navBtnRow, navStatusBar);
   navSection.appendChild(navContent);
@@ -542,43 +542,15 @@
   const extractSection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
   const extractSectionHeader = el('div', { style: 'display:flex;align-items:center;margin-bottom:10px;' });
   const extractSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;font-size:13px;flex:1;text-align:center;' });
-  extractSectionTitle.textContent = 'Extract';
+  extractSectionTitle.textContent = 'Progress';
   const extractCollapseBtn   = el('button', { innerText: '−', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
-  const extractHelpBtn       = el('button', { innerText: '?', type: 'button', style: 'cursor:pointer;padding:2px 7px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:3px;font-size:13px;font-weight:bold;line-height:1;margin-right:4px;' });
-  extractSectionHeader.append(extractHelpBtn, extractSectionTitle, extractCollapseBtn);
+  extractSectionHeader.append(extractSectionTitle, extractCollapseBtn);
   extractSection.appendChild(extractSectionHeader);
 
   const extractContent = el('div');
-
-  // Mode selector
-  const modeRow = el('div', { style: 'display:flex;gap:8px;justify-content:center;margin-bottom:10px;flex-wrap:wrap;' });
-  const modeRadios = {};
-  Object.keys(MODES).forEach((mode, idx) => {
-    const label = el('label', { style: 'display:flex;align-items:center;gap:5px;cursor:pointer;padding:6px 12px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:4px;font-size:12px;color:#bbb;' });
-    const radio = el('input', { type: 'radio', name: 'extract_mode', value: mode, style: 'cursor:pointer;' });
-    if (idx === 0) radio.checked = true;
-    modeRadios[mode] = radio;
-    label.append(radio, document.createTextNode(MODES[mode]));
-    modeRow.appendChild(label);
-  });
-  // All Modes — not a real TW page mode, so kept out of MODES to avoid nav button issues
-  {
-    const label = el('label', { style: 'display:flex;align-items:center;gap:5px;cursor:pointer;padding:6px 12px;background:#1a1a1a;border:1px solid #4a3a1a;border-radius:4px;font-size:12px;color:#cc9;' });
-    const radio = el('input', { type: 'radio', name: 'extract_mode', value: 'all_modes', style: 'cursor:pointer;' });
-    modeRadios['all_modes'] = radio;
-    label.append(radio, document.createTextNode('All Modes'));
-    modeRow.appendChild(label);
-  }
-
-  // Fetch controls
-  const fetchRow = el('div', { style: 'display:flex;gap:8px;justify-content:center;align-items:center;margin-bottom:10px;flex-wrap:wrap;' });
-  const btnFetch = el('button', { innerText: 'Fetch Selected Members', type: 'button', style: 'cursor:pointer;padding:10px 24px;background:#2a5a2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;font-weight:bold;font-size:13px;' });
-  fetchRow.appendChild(btnFetch);
-
-  // Progress display
-  const progressBox = el('div', { style: 'display:none;padding:8px;background:#0a0a0a;border:1px solid #2a2a2a;border-radius:4px;font-size:12px;font-family:monospace;color:#aaa;min-height:36px;' });
-
-  extractContent.append(modeRow, fetchRow, progressBox);
+  const progressBox = el('div', { style: 'padding:8px;background:#0a0a0a;border:1px solid #2a2a2a;border-radius:4px;font-size:12px;font-family:monospace;color:#aaa;min-height:36px;white-space:pre-wrap;' });
+  progressBox.textContent = 'Initialising...';
+  extractContent.appendChild(progressBox);
   extractSection.appendChild(extractContent);
   body.appendChild(extractSection);
 
@@ -586,7 +558,7 @@
   const resultsSection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
   const resultsSectionHeader = el('div', { style: 'display:flex;align-items:center;margin-bottom:10px;' });
   const resultsSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;font-size:13px;flex:1;text-align:center;' });
-  resultsSectionTitle.textContent = 'Results';
+  resultsSectionTitle.textContent = 'Export';
   const resultsCollapseBtn   = el('button', { innerText: '+', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
   resultsSectionHeader.append(resultsSectionTitle, resultsCollapseBtn);
   resultsSection.appendChild(resultsSectionHeader);
@@ -595,15 +567,34 @@
 
   const resultsSummary = el('div', { style: 'font-size:12px;color:#888;text-align:center;margin-bottom:8px;min-height:16px;' });
 
-  const exportRow = el('div', { style: 'display:flex;gap:8px;justify-content:center;margin-bottom:10px;flex-wrap:wrap;' });
+  // Mode selector (for export — not for fetching)
+  const modeRow    = el('div', { style: 'display:flex;gap:8px;justify-content:center;margin-bottom:10px;flex-wrap:wrap;' });
+  const modeRadios = {};
+  Object.keys(MODES).forEach((mode, idx) => {
+    const label = el('label', { style: 'display:flex;align-items:center;gap:5px;cursor:pointer;padding:6px 12px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:4px;font-size:12px;color:#bbb;' });
+    const radio  = el('input', { type: 'radio', name: 'export_mode', value: mode, style: 'cursor:pointer;' });
+    if (idx === 0) radio.checked = true;
+    modeRadios[mode] = radio;
+    label.append(radio, document.createTextNode(MODES[mode]));
+    modeRow.appendChild(label);
+  });
+  {
+    const label = el('label', { style: 'display:flex;align-items:center;gap:5px;cursor:pointer;padding:6px 12px;background:#1a1a1a;border:1px solid #4a3a1a;border-radius:4px;font-size:12px;color:#cc9;' });
+    const radio  = el('input', { type: 'radio', name: 'export_mode', value: 'all_modes', style: 'cursor:pointer;' });
+    modeRadios['all_modes'] = radio;
+    label.append(radio, document.createTextNode('All Modes'));
+    modeRow.appendChild(label);
+  }
+
+  const exportRow   = el('div', { style: 'display:flex;gap:8px;justify-content:center;margin-bottom:10px;flex-wrap:wrap;' });
   const btnCopyCSV  = el('button', { innerText: 'Copy CSV',  type: 'button', style: 'cursor:pointer;padding:8px 18px;background:#2a3a5a;color:#fff;border:1px solid #3a5a7a;border-radius:4px;font-size:12px;' });
   const btnCopyJSON = el('button', { innerText: 'Copy JSON', type: 'button', style: 'cursor:pointer;padding:8px 18px;background:#2a3a5a;color:#fff;border:1px solid #3a5a7a;border-radius:4px;font-size:12px;' });
   exportRow.append(btnCopyCSV, btnCopyJSON);
 
   const resultsOutput = el('div', { style: 'background:#0a0a0a;border:1px solid #2a2a2a;border-radius:4px;padding:10px;font-family:monospace;font-size:11px;color:#ccc;max-height:320px;overflow-y:auto;white-space:pre;overflow-x:auto;min-height:60px;' });
-  resultsOutput.textContent = 'No data yet — fetch members first.';
+  resultsOutput.textContent = 'Loading data...';
 
-  resultsContent.append(resultsSummary, exportRow, resultsOutput);
+  resultsContent.append(resultsSummary, modeRow, exportRow, resultsOutput);
   resultsSection.appendChild(resultsContent);
   body.appendChild(resultsSection);
 
@@ -664,10 +655,9 @@
 
   /* ── State ── */
 
-  let members          = [];
-  let lastCSV          = '';
-  let lastJSON         = '';
-  let fetchInProgress  = false;
+  let lastCSV  = '';
+  let lastJSON = '';
+  let cachedData = { unitNames: [], buildingHeaders: [], members: [], troops: {}, defenseRaw: {}, buildings: {} };
 
   /* ── Member List Builder ── */
 
@@ -677,7 +667,7 @@
 
     if (!memberArr.length) {
       const note = el('div', { style: 'font-size:12px;color:#888;padding:6px;' });
-      note.textContent = 'No members detected — run the script on one of the ally pages.';
+      note.textContent = 'Loading member data…';
       membersList.appendChild(note);
       membersCountLabel.textContent = '0 members';
       return;
@@ -704,175 +694,161 @@
       .map(({ member }) => member);
   }
 
-  /* ── Fetch Logic ── */
+  /* ── Fetch & Export Logic ── */
 
   function getSelectedMode() {
     for (const mode in modeRadios) {
       if (modeRadios[mode].checked) return mode;
     }
-    return 'members_defense';
+    return 'all_modes';
   }
 
-  async function runFetch() {
-    if (fetchInProgress) { showMessage('Fetch already in progress'); return; }
-    const selected = getSelectedMembers();
-    if (!selected.length) { showMessage('Select at least one member'); return; }
-    const mode = getSelectedMode();
+  function getSelectedMemberIds() {
+    return new Set(
+      Object.entries(memberCheckboxes)
+        .filter(([, { cb }]) => cb.checked)
+        .map(([id]) => id)
+    );
+  }
 
-    fetchInProgress = true;
-    btnFetch.disabled = true;
-    btnFetch.textContent = 'Fetching...';
-    progressBox.style.display = 'block';
-    progressBox.textContent = 'Starting...';
-    lastCSV = ''; lastJSON = '';
-    resultsOutput.textContent = '';
-    resultsSummary.textContent = '';
+  function generateExport() {
+    const mode        = getSelectedMode();
+    const selectedIds = getSelectedMemberIds();
+    const { unitNames, buildingHeaders, members } = cachedData;
+    const pick = store => members.filter(m => selectedIds.has(m.id)).flatMap(m => store[m.id] || []);
 
-    if (mode === 'all_modes') {
-      const errors = [];
-      const subFetch = async (subMode, label) => {
-        const subRows = []; let unitNames = []; let buildingHeaders = [];
-        for (let i = 0; i < selected.length; i++) {
-          const m = selected[i];
-          progressBox.textContent = label + ' (' + (i + 1) + '/' + selected.length + ') ' + m.name + '...';
-          try {
-            const doc = await fetchPlayerPage(subMode, m.id);
-            if (subMode === 'members_troops') {
-              const r = parseTroopsPage(doc, m);
-              subRows.push(...r.rows);
-              if (!unitNames.length && r.unitNames.length) unitNames = r.unitNames;
-            } else if (subMode === 'members_defense') {
-              const r = parseDefensePage(doc, m);
-              subRows.push(...r.rows);
-              if (!unitNames.length && r.unitNames.length) unitNames = r.unitNames;
-            } else {
-              const r = parseGenericUnitPage(doc, m);
-              subRows.push(...r.rows);
-              if (!buildingHeaders.length && r.headers.length) buildingHeaders = r.headers;
-            }
-          } catch (e) { errors.push(label + ' — ' + m.name + ': ' + e.message); }
-          if (i < selected.length - 1) await sleep(FETCH_DELAY_MS);
-        }
-        return { rows: subRows, unitNames, buildingHeaders };
-      };
+    if (mode === 'members_troops') {
+      const rows = pick(cachedData.troops);
+      lastCSV  = troopsToCSV(rows, unitNames);
+      lastJSON = troopsToJSON(rows, unitNames);
+      const N  = new Set(rows.map(r => r.player_id)).size;
+      resultsSummary.textContent = N + ' member(s) — ' + rows.length + ' village(s)';
+      resultsOutput.textContent = rows.slice(0, 10).map(r =>
+        r.player_name.padEnd(12) + '  ' + r.coords.padEnd(9) + '  pts:' + String(r.points).padEnd(5) +
+        '  out:' + String(r.active_commands).padEnd(3) + '  in:' + String(r.incoming).padEnd(3) +
+        '  spear:' + (r.units[0] || 0) + '  sword:' + (r.units[1] || 0)
+      ).join('\n') + (rows.length > 10 ? '\n... (' + (rows.length - 10) + ' more)' : '');
 
-      const troopsR    = await subFetch('members_troops',    'Troops');
-      const defenseR   = await subFetch('members_defense',   'Defense');
-      const buildingsR = await subFetch('members_buildings', 'Buildings');
+    } else if (mode === 'members_defense') {
+      const flat = flattenDefenseRows(pick(cachedData.defenseRaw));
+      lastCSV  = defenseToCSV(flat, unitNames);
+      lastJSON = defenseToJSON(flat, unitNames);
+      const N  = new Set(flat.map(r => r.player_id)).size;
+      resultsSummary.textContent = N + ' member(s) — ' + flat.length + ' village(s)';
+      resultsOutput.textContent = flat.slice(0, 10).map(r =>
+        r.player_name.padEnd(12) + '  ' + r.coords.padEnd(9) + '  pts:' + String(r.points).padEnd(5) +
+        '  atk_in:' + String(r.incoming).padEnd(3) + '  spear:' + r.in_village[0] + '/' + r.enroute[0]
+      ).join('\n') + (flat.length > 10 ? '\n... (' + (flat.length - 10) + ' more)' : '');
 
-      const unitNames       = troopsR.unitNames.length ? troopsR.unitNames : defenseR.unitNames.length ? defenseR.unitNames : UNIT_COLS.slice();
-      const buildingHeaders = buildingsR.buildingHeaders;
-      const defenseFlat     = flattenDefenseRows(defenseR.rows);
-      const combined        = combineAllModes(troopsR.rows, defenseFlat, buildingsR.rows, unitNames, buildingHeaders);
+    } else if (mode === 'members_buildings') {
+      const rows = pick(cachedData.buildings);
+      lastCSV  = genericToCSV(buildingHeaders, rows);
+      lastJSON = JSON.stringify(withTimestamp(rows.map(r => {
+        const obj = { player_name: r.player_name, player_id: r.player_id, village: r.village, coords: r.coords, points: r.points };
+        buildingHeaders.forEach((h, i) => { obj[h] = r.data[i] || ''; });
+        return obj;
+      })), null, 2);
+      const N  = new Set(rows.map(r => r.player_id)).size;
+      resultsSummary.textContent = N + ' member(s) — ' + rows.length + ' village(s)';
+      resultsOutput.textContent = rows.slice(0, 10).map(r =>
+        r.player_name.padEnd(12) + '  ' + (r.coords || '').padEnd(9) + '  pts:' + String(r.points).padEnd(5) + '  ' + r.data.slice(0, 5).join('  ')
+      ).join('\n') + (rows.length > 10 ? '\n... (' + (rows.length - 10) + ' more)' : '');
 
+    } else { // all_modes
+      const troopRows = pick(cachedData.troops);
+      const flat      = flattenDefenseRows(pick(cachedData.defenseRaw));
+      const buildRows = pick(cachedData.buildings);
+      const combined  = combineAllModes(troopRows, flat, buildRows, unitNames, buildingHeaders);
       lastCSV  = combinedToCSV(combined, unitNames, buildingHeaders);
       lastJSON = combinedToJSON(combined, unitNames, buildingHeaders);
-
-      const totalMembers  = new Set(combined.map(r => r.player_id)).size;
-      progressBox.textContent = 'Done — ' + totalMembers + ' member(s), ' + combined.length + ' village(s), ' + (selected.length * 3) + ' pages fetched' + (errors.length ? ', ' + errors.length + ' error(s)' : '');
-      resultsSummary.textContent = totalMembers + ' member(s) — ' + combined.length + ' village(s)';
+      const N  = new Set(combined.map(r => r.player_id)).size;
+      resultsSummary.textContent = N + ' member(s) — ' + combined.length + ' village(s)';
       resultsOutput.textContent = combined.slice(0, 5).map(r =>
         r.player_name.padEnd(12) + '  ' + (r.coords || '').padEnd(9) + '  pts:' + String(r.points).padEnd(5) +
         '  spear:' + (r.troops[0] || 0) + '  spear_iv:' + (r.in_village[0] || 0) + '  bldg[0]:' + (r.buildings[0] || '-')
       ).join('\n') + (combined.length > 5 ? '\n... (' + (combined.length - 5) + ' more)' : '');
-      ensureExpanded(resultsContent, resultsCollapseBtn);
-      showMessage('All modes complete — ' + combined.length + ' villages');
-      btnFetch.disabled = false;
-      btnFetch.textContent = 'Fetch Selected Members';
-      fetchInProgress = false;
+    }
+  }
+
+  async function initFetch() {
+    const myId = String((window.game_data && game_data.player && game_data.player.id) || '');
+    if (!myId) {
+      progressBox.textContent = '✗ Could not read player ID from game_data — are you logged in?';
       return;
     }
 
-    const allRawRows = [];
-    const errors     = [];
-    let genericHeaders   = [];
-    let capturedUnitNames = [];
+    cachedData = { unitNames: [], buildingHeaders: [], members: [], troops: {}, defenseRaw: {}, buildings: {} };
+    let fetchCount = 0;
 
-    const diagLines = [];
+    async function doFetch(mode, playerId) {
+      if (fetchCount > 0) await sleep(FETCH_DELAY_MS);
+      fetchCount++;
+      return fetchPlayerPage(mode, playerId);
+    }
 
-    for (let i = 0; i < selected.length; i++) {
-      const m       = selected[i];
-      const fetchUrl = buildAllyUrl(mode, m.id);
-      progressBox.textContent = '(' + (i + 1) + '/' + selected.length + ') Fetching: ' + m.name + '...';
-      try {
-        const doc    = await fetchPlayerPage(mode, m.id);
-        const tableCount = doc.querySelectorAll('table').length;
-        const unitTable  = findUnitTable(doc);
-        let rows;
-        if (mode === 'members_defense') {
-          const result = parseDefensePage(doc, m);
-          rows = result.rows;
-          if (result.unitNames.length && !capturedUnitNames.length) capturedUnitNames = result.unitNames;
-        } else if (mode === 'members_troops') {
-          const result = parseTroopsPage(doc, m);
-          rows = result.rows;
-          if (result.unitNames.length && !capturedUnitNames.length) capturedUnitNames = result.unitNames;
-        } else {
-          const result = parseGenericUnitPage(doc, m);
-          rows = result.rows;
-          if (result.headers.length && !genericHeaders.length) genericHeaders = result.headers;
-        }
-        allRawRows.push(...rows);
-        const diag = (rows.length ? '✓' : '⚠') + ' ' + m.name + ' — ' + rows.length + ' row(s) | tables in page: ' + tableCount + ' | unit table: ' + (unitTable ? 'found' : 'NOT FOUND');
-        diagLines.push('URL: ' + fetchUrl);
-        diagLines.push(diag);
-        progressBox.textContent = diag;
-      } catch (e) {
-        errors.push(m.name + ': ' + e.message);
-        diagLines.push('✗ ' + m.name + ': ' + e.message);
-        progressBox.textContent = '(' + (i + 1) + '/' + selected.length + ') ✗ ' + m.name + ' — ' + e.message;
+    // ── Troops (first fetch also gives member list) ──
+    try {
+      const firstDoc = await doFetch('members_troops', myId);
+      const allMembers = getMembersFromDoc(firstDoc);
+      if (!allMembers.length) {
+        progressBox.textContent = '✗ No members found in dropdown — do you have tribe rights to view member info?';
+        return;
       }
-      if (i < selected.length - 1) await sleep(FETCH_DELAY_MS);
+      cachedData.members = allMembers;
+      buildMemberList(allMembers);
+
+      const myMember = allMembers.find(m => m.id === myId) || { id: myId, name: 'Me' };
+      const myTroops = parseTroopsPage(firstDoc, myMember);
+      cachedData.troops[myId] = myTroops.rows;
+      if (myTroops.unitNames.length) cachedData.unitNames = myTroops.unitNames;
+
+      const others = allMembers.filter(m => m.id !== myId);
+      for (let i = 0; i < others.length; i++) {
+        const m = others[i];
+        progressBox.textContent = 'Troops (' + (i + 2) + '/' + allMembers.length + ') ' + m.name + '...';
+        try {
+          const doc = await doFetch('members_troops', m.id);
+          const r = parseTroopsPage(doc, m);
+          cachedData.troops[m.id] = r.rows;
+          if (!cachedData.unitNames.length && r.unitNames.length) cachedData.unitNames = r.unitNames;
+        } catch (e) { showMessage('Troops — ' + m.name + ': ' + e.message); }
+      }
+    } catch (e) {
+      progressBox.textContent = '✗ Failed on first fetch: ' + e.message;
+      return;
     }
 
-    diagLines.push('──');
-    diagLines.push('Done — ' + selected.length + ' fetched, ' + allRawRows.length + ' total rows' + (errors.length ? ', ' + errors.length + ' error(s)' : ''));
-    progressBox.textContent = diagLines.join('\n');
+    const allMembers = cachedData.members;
 
-    // Build results
-    const unitNames = capturedUnitNames.length ? capturedUnitNames : UNIT_COLS.slice();
-    if (mode === 'members_defense') {
-      const flat = flattenDefenseRows(allRawRows);
-      lastCSV  = defenseToCSV(flat, unitNames);
-      lastJSON = defenseToJSON(flat, unitNames);
-      const totalVillages = flat.length;
-      const totalMembers  = new Set(flat.map(r => r.player_id)).size;
-      resultsSummary.textContent = totalMembers + ' member(s) — ' + totalVillages + ' village(s)';
-      const preview = flat.slice(0, 10).map(r =>
-        r.player_name.padEnd(12) + '  ' + r.coords.padEnd(9) + '  pts:' + String(r.points).padEnd(5) + '  atk_in:' + String(r.incoming).padEnd(3) + '  spear:' + r.in_village[0] + '/' + r.enroute[0] + '  sword:' + r.in_village[1] + '/' + r.enroute[1]
-      ).join('\n');
-      resultsOutput.textContent = 'player        coords      pts    atk_in  spear(vil/enr)  sword(vil/enr)\n' + preview + (flat.length > 10 ? '\n... (' + (flat.length - 10) + ' more)' : '');
-    } else if (mode === 'members_troops') {
-      lastCSV  = troopsToCSV(allRawRows, unitNames);
-      lastJSON = troopsToJSON(allRawRows, unitNames);
-      const totalVillages = allRawRows.length;
-      const totalMembers  = new Set(allRawRows.map(r => r.player_id)).size;
-      resultsSummary.textContent = totalMembers + ' member(s) — ' + totalVillages + ' village(s)';
-      const preview = allRawRows.slice(0, 10).map(r =>
-        r.player_name.padEnd(12) + '  ' + r.coords.padEnd(9) + '  pts:' + String(r.points).padEnd(5) + '  out:' + String(r.active_commands).padEnd(3) + '  in:' + String(r.incoming).padEnd(3) + '  spear:' + r.units[0] + '  sword:' + r.units[1]
-      ).join('\n');
-      resultsOutput.textContent = 'player        coords      pts    out  in   spear  sword\n' + preview + (allRawRows.length > 10 ? '\n... (' + (allRawRows.length - 10) + ' more)' : '');
-    } else {
-      // Generic mode (buildings)
-      lastCSV  = genericToCSV(genericHeaders, allRawRows);
-      lastJSON = JSON.stringify(withTimestamp(allRawRows.map(r => {
-        const obj = { player_name: r.player_name, player_id: r.player_id, village: r.village, coords: r.coords, points: r.points };
-        genericHeaders.forEach((h, i) => { obj[h] = r.data[i] || ''; });
-        return obj;
-      })), null, 2);
-      const totalVillages = allRawRows.length;
-      const totalMembers  = new Set(allRawRows.map(r => r.player_id)).size;
-      resultsSummary.textContent = totalMembers + ' member(s) — ' + totalVillages + ' village(s)';
-      resultsOutput.textContent = allRawRows.slice(0, 10).map(r =>
-        r.player_name.padEnd(12) + '  ' + (r.coords || '').padEnd(9) + '  pts:' + String(r.points).padEnd(5) + '  ' + r.data.slice(0, 5).join('  ')
-      ).join('\n') + (allRawRows.length > 10 ? '\n... (' + (allRawRows.length - 10) + ' more)' : '');
+    // ── Defense ──
+    for (let i = 0; i < allMembers.length; i++) {
+      const m = allMembers[i];
+      progressBox.textContent = 'Defense (' + (i + 1) + '/' + allMembers.length + ') ' + m.name + '...';
+      try {
+        const doc = await doFetch('members_defense', m.id);
+        const r = parseDefensePage(doc, m);
+        cachedData.defenseRaw[m.id] = r.rows;
+        if (!cachedData.unitNames.length && r.unitNames.length) cachedData.unitNames = r.unitNames;
+      } catch (e) { showMessage('Defense — ' + m.name + ': ' + e.message); }
     }
 
+    // ── Buildings ──
+    for (let i = 0; i < allMembers.length; i++) {
+      const m = allMembers[i];
+      progressBox.textContent = 'Buildings (' + (i + 1) + '/' + allMembers.length + ') ' + m.name + '...';
+      try {
+        const doc = await doFetch('members_buildings', m.id);
+        const r = parseGenericUnitPage(doc, m);
+        cachedData.buildings[m.id] = r.rows;
+        if (!cachedData.buildingHeaders.length && r.headers.length) cachedData.buildingHeaders = r.headers;
+      } catch (e) { showMessage('Buildings — ' + m.name + ': ' + e.message); }
+    }
+
+    progressBox.textContent = '✓ Done — ' + allMembers.length + ' member(s), ' + fetchCount + ' pages fetched';
+    makeCollapseHandler(extractContent, extractCollapseBtn)(); // auto-collapse progress
     ensureExpanded(resultsContent, resultsCollapseBtn);
-    showMessage('Fetch complete — ' + allRawRows.length + ' rows total');
-    btnFetch.disabled = false;
-    btnFetch.textContent = 'Fetch Selected Members';
-    fetchInProgress = false;
+    generateExport();
+    showMessage('Data loaded — ' + allMembers.length + ' member(s)');
   }
 
   /* ── Discovery Scan ── */
@@ -966,32 +942,22 @@
     e.stopPropagation();
     showHelp('Tribe Info Extractor — Overview',
       '<b>How it works</b><br>' +
-      'Each ally page has a member dropdown — the script reads all member IDs from it, then uses <code>fetch()</code> to load each member\'s data page automatically.<br><br>' +
+      'On load the script reads your player ID from <code>game_data</code>, fetches all three ally data pages for every tribe member, and caches the results. No navigation required.<br><br>' +
       '<b>Workflow</b><br>' +
-      '1. Navigate to any of the three ally pages.<br>' +
-      '2. Run the script — the member list populates from the page dropdown.<br>' +
-      '3. Select which members and which mode to extract.<br>' +
-      '4. Click <i>Fetch Selected Members</i>.<br>' +
-      '5. Copy the result as CSV or JSON.<br><br>' +
+      '1. Run the script from any page while logged in.<br>' +
+      '2. Wait for the Progress section to show ✓ Done.<br>' +
+      '3. Untick any members you want to exclude.<br>' +
+      '4. Select export mode and click Copy CSV or Copy JSON.<br><br>' +
       '<b>Member Troops</b><br>' +
-      'Shows all troops <i>owned by</i> the player, grouped by their home village — includes units currently away (attacking or supporting elsewhere). ' +
-      'Columns: player_name, player_id, village, coords, points, active_commands, incoming_attacks, then one column per unit type.<br><br>' +
+      'All troops <i>owned by</i> the player, grouped by home village — includes units currently away. ' +
+      'Columns: player_name, player_id, village, coords, points, active_commands, incoming, then one column per unit type.<br><br>' +
       '<b>Member Defense</b><br>' +
-      'Shows troops <i>present in or traveling to</i> each village — includes allied support, excludes the owner\'s troops that are away. ' +
-      'Columns: player_name, player_id, village, coords, points, incoming_attacks, then spear_in_village…militia_in_village, then spear_enroute…militia_enroute.<br><br>' +
+      'Troops <i>present in or traveling to</i> each village — includes allied support. ' +
+      'Columns: …points, incoming_attacks, spear_in_village…militia_in_village, spear_enroute…militia_enroute.<br><br>' +
       '<b>Member Buildings</b><br>' +
-      'Generic extraction — proper parsing pending structure confirmation.'
-    );
-  });
-
-  extractHelpBtn.addEventListener('click', e => {
-    e.stopPropagation();
-    showHelp('Extract — How to use',
-      '<b>Mode</b> — select which page type to fetch for each member.<br><br>' +
-      '<b>Troops</b>: All troops <i>owned by</i> the player (home + away), grouped by home village. One row per village.<br><br>' +
-      '<b>Defense</b>: Troops <i>present in or en route to</i> each village, including allied support. One row per village with <i>_in_village</i> and <i>_enroute</i> unit columns.<br><br>' +
-      '<b>Buildings</b>: Generic raw extraction for now.<br><br>' +
-      '<b>Fetch delay</b>: ' + FETCH_DELAY_MS + 'ms between requests to avoid overloading the server.'
+      'Building levels per village — columns depend on the world\'s building set.<br><br>' +
+      '<b>All Modes</b><br>' +
+      'One combined row per village with troops, defense, and building columns merged.'
     );
   });
 
@@ -1006,15 +972,15 @@
   btnSelectAll.addEventListener('click',  () => Object.values(memberCheckboxes).forEach(({ cb }) => { cb.checked = true; }));
   btnSelectNone.addEventListener('click', () => Object.values(memberCheckboxes).forEach(({ cb }) => { cb.checked = false; }));
 
-  btnFetch.addEventListener('click', runFetch);
-
   btnCopyCSV.addEventListener('click', () => {
-    if (!lastCSV) { showMessage('No data — run Fetch first'); return; }
+    if (!cachedData.members.length) { showMessage('Data not loaded yet'); return; }
+    generateExport();
     copyText(lastCSV).then(() => showMessage('CSV copied!')).catch(() => showMessage('Copy failed'));
   });
 
   btnCopyJSON.addEventListener('click', () => {
-    if (!lastJSON) { showMessage('No data — run Fetch first'); return; }
+    if (!cachedData.members.length) { showMessage('Data not loaded yet'); return; }
+    generateExport();
     copyText(lastJSON).then(() => showMessage('JSON copied!')).catch(() => showMessage('Copy failed'));
   });
 
@@ -1026,12 +992,7 @@
 
   /* ── Init ── */
 
-  members = getMembersFromPage();
-  buildMemberList(members);
-
-  // Pre-select the mode matching the current page
-  if (currentMode in modeRadios) modeRadios[currentMode].checked = true;
-
-  showMessage('Ready' + (members.length ? ' — ' + members.length + ' member(s) detected' : ' — navigate to an ally page'));
+  buildMemberList([]); // show empty list with "loading" state until fetch completes
+  initFetch();
 
 })();
