@@ -478,7 +478,7 @@
   const membersSection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
   const membersSectionHeader = el('div', { style: 'display:flex;align-items:center;margin-bottom:10px;' });
   const membersSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;font-size:13px;flex:1;text-align:center;' });
-  membersSectionTitle.textContent = 'Tribe Members';
+  membersSectionTitle.textContent = 'Filter';
   const membersCollapseBtn   = el('button', { innerText: '−', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
   membersSectionHeader.append(membersSectionTitle, membersCollapseBtn);
   membersSection.appendChild(membersSectionHeader);
@@ -489,9 +489,28 @@
   const btnSelectAll      = el('button', { innerText: 'All',  type: 'button', style: 'cursor:pointer;padding:4px 10px;background:#2a3a2a;color:#aaa;border:1px solid #3a5a3a;border-radius:3px;font-size:11px;' });
   const btnSelectNone     = el('button', { innerText: 'None', type: 'button', style: 'cursor:pointer;padding:4px 10px;background:#2a2a2a;color:#aaa;border:1px solid #4a4a4a;border-radius:3px;font-size:11px;' });
   membersTopRow.append(membersCountLabel, btnSelectAll, btnSelectNone);
-  const membersList       = el('div', { style: 'display:flex;flex-wrap:wrap;gap:6px;' });
+  const membersList       = el('div', { style: 'display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;' });
   const memberCheckboxes  = {};
-  membersContent.append(membersTopRow, membersList);
+
+  const modeRadios = {};
+  const modeFilterRow = el('div', { style: 'border-top:1px solid #2a2a2a;padding-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;' });
+  Object.keys(MODES).forEach((mode, idx) => {
+    const label = el('label', { style: 'display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 11px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:4px;font-size:12px;color:#bbb;' });
+    const radio  = el('input', { type: 'radio', name: 'export_mode', value: mode, style: 'cursor:pointer;' });
+    if (idx === 0) radio.checked = true;
+    modeRadios[mode] = radio;
+    label.append(radio, document.createTextNode(MODES[mode]));
+    modeFilterRow.appendChild(label);
+  });
+  {
+    const label = el('label', { style: 'display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 11px;background:#1a1a1a;border:1px solid #4a3a1a;border-radius:4px;font-size:12px;color:#cc9;' });
+    const radio  = el('input', { type: 'radio', name: 'export_mode', value: 'all_modes', style: 'cursor:pointer;' });
+    modeRadios['all_modes'] = radio;
+    label.append(radio, document.createTextNode('All Modes'));
+    modeFilterRow.appendChild(label);
+  }
+
+  membersContent.append(membersTopRow, membersList, modeFilterRow);
   membersSection.appendChild(membersContent);
   body.appendChild(membersSection);
 
@@ -509,8 +528,8 @@
   const overviewTable   = el('table', { style: 'width:100%;border-collapse:collapse;font-size:12px;' });
   const overviewThead   = el('thead');
   const overviewThr     = el('tr');
-  ['Member', 'Villages', 'Troops', 'Def in-village', 'Def en route', 'Buildings'].forEach((h, i) => {
-    const th = el('th', { style: 'padding:6px 10px;text-align:' + (i === 0 ? 'left' : 'right') + ';color:#8ac;border-bottom:2px solid #2a2a4a;background:#0a0a1a;font-weight:bold;white-space:nowrap;' });
+  ['Member', 'Villages', 'Troops', 'Defense', 'Buildings'].forEach((h, i) => {
+    const th = el('th', { style: 'padding:6px 10px;text-align:' + (i === 0 ? 'left' : 'right') + ';color:#666;border-bottom:1px solid #2a2a2a;font-weight:normal;font-size:11px;white-space:nowrap;letter-spacing:0.3px;' });
     th.textContent = h;
     overviewThr.appendChild(th);
   });
@@ -531,28 +550,11 @@
   resultsSection.appendChild(resultsSectionHeader);
 
   const resultsContent = el('div');
-  const modeRow        = el('div', { style: 'display:flex;gap:8px;justify-content:center;margin-bottom:10px;flex-wrap:wrap;' });
-  const modeRadios     = {};
-  Object.keys(MODES).forEach((mode, idx) => {
-    const label = el('label', { style: 'display:flex;align-items:center;gap:5px;cursor:pointer;padding:6px 12px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:4px;font-size:12px;color:#bbb;' });
-    const radio  = el('input', { type: 'radio', name: 'export_mode', value: mode, style: 'cursor:pointer;' });
-    if (idx === 0) radio.checked = true;
-    modeRadios[mode] = radio;
-    label.append(radio, document.createTextNode(MODES[mode]));
-    modeRow.appendChild(label);
-  });
-  {
-    const label = el('label', { style: 'display:flex;align-items:center;gap:5px;cursor:pointer;padding:6px 12px;background:#1a1a1a;border:1px solid #4a3a1a;border-radius:4px;font-size:12px;color:#cc9;' });
-    const radio  = el('input', { type: 'radio', name: 'export_mode', value: 'all_modes', style: 'cursor:pointer;' });
-    modeRadios['all_modes'] = radio;
-    label.append(radio, document.createTextNode('All Modes'));
-    modeRow.appendChild(label);
-  }
   const exportRow   = el('div', { style: 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap;' });
   const btnCopyCSV  = el('button', { innerText: 'Copy CSV',  type: 'button', style: 'cursor:pointer;padding:8px 18px;background:#2a3a5a;color:#fff;border:1px solid #3a5a7a;border-radius:4px;font-size:12px;' });
   const btnCopyJSON = el('button', { innerText: 'Copy JSON', type: 'button', style: 'cursor:pointer;padding:8px 18px;background:#2a3a5a;color:#fff;border:1px solid #3a5a7a;border-radius:4px;font-size:12px;' });
   exportRow.append(btnCopyCSV, btnCopyJSON);
-  resultsContent.append(modeRow, exportRow);
+  resultsContent.append(exportRow);
   resultsSection.appendChild(resultsContent);
   body.appendChild(resultsSection);
 
@@ -594,6 +596,7 @@
   let lastCSV  = '';
   let lastJSON = '';
   let cachedData = { unitNames: [], buildingHeaders: [], members: [], troops: {}, defenseRaw: {}, buildings: {} };
+  const expandedPlayers = new Set();
 
   /* ── Member List Builder ── */
 
@@ -685,10 +688,11 @@
 
   function refreshOverview() {
     const selectedIds = getSelectedMemberIds();
-    const { members } = cachedData;
+    const { members, unitNames, buildingHeaders } = cachedData;
+    const mode = getSelectedMode();
 
     if (!members.length) {
-      overviewTbody.innerHTML = '<tr><td colspan="6" style="color:#888;text-align:center;padding:16px;">No data loaded yet</td></tr>';
+      overviewTbody.innerHTML = '<tr><td colspan="5" style="color:#888;text-align:center;padding:16px;">No data loaded yet</td></tr>';
       overviewSummary.textContent = '';
       return;
     }
@@ -699,9 +703,9 @@
     overviewTbody.innerHTML = '';
 
     selectedMembers.forEach((m, idx) => {
-      const troopRows = cachedData.troops[m.id]     || [];
+      const troopRows = cachedData.troops[m.id]    || [];
       const defFlat   = flattenDefenseRows(cachedData.defenseRaw[m.id] || []);
-      const bldgRows  = cachedData.buildings[m.id]  || [];
+      const bldgRows  = cachedData.buildings[m.id] || [];
 
       const troopTotal = troopRows.reduce((s, r) => s + r.units.reduce((a, b) => a + b, 0), 0);
       const defIn      = defFlat.reduce((s, r) => s + r.in_village.reduce((a, b) => a + b, 0), 0);
@@ -709,24 +713,127 @@
       const villCount  = troopRows.length || defFlat.length || bldgRows.length;
       totalVillages   += villCount;
 
-      const rowEl = el('tr', { style: 'background:' + (idx % 2 === 0 ? '#111' : '#0d0d0d') + ';' });
-      [
-        { v: m.name,                                              align: 'left'  },
-        { v: villCount,                                           align: 'right' },
-        { v: fmt(troopTotal),                                     align: 'right' },
-        { v: fmt(defIn),                                          align: 'right' },
-        { v: fmt(defEn),                                          align: 'right' },
-        { v: bldgRows.length ? bldgRows.length + ' vills' : '—', align: 'right' },
-      ].forEach(({ v, align }) => {
-        const td = el('td', { style: 'padding:5px 10px;text-align:' + align + ';color:#ddd;border-bottom:1px solid #1a1a1a;' });
-        td.textContent = v;
-        rowEl.appendChild(td);
+      const isExpanded = expandedPlayers.has(m.id);
+      const rowBg      = idx % 2 === 0 ? '#131313' : '#0f0f0f';
+
+      // ── Summary row (clickable) ──
+      const summaryTr = el('tr', { style: 'cursor:pointer;background:' + rowBg + ';' });
+      summaryTr.addEventListener('mouseenter', () => { summaryTr.style.background = '#1c1c1c'; });
+      summaryTr.addEventListener('mouseleave', () => { summaryTr.style.background = rowBg; });
+      summaryTr.addEventListener('click', () => {
+        if (expandedPlayers.has(m.id)) expandedPlayers.delete(m.id);
+        else expandedPlayers.add(m.id);
+        refreshOverview();
       });
-      overviewTbody.appendChild(rowEl);
+
+      [
+        { v: (isExpanded ? '▾  ' : '▸  ') + m.name, align: 'left',  color: '#ddd' },
+        { v: villCount,                                align: 'right', color: '#999' },
+        { v: fmt(troopTotal),                          align: 'right', color: '#999' },
+        { v: fmt(defIn) + ' / ' + fmt(defEn),          align: 'right', color: '#999' },
+        { v: bldgRows.length ? bldgRows.length + ' vills' : '—', align: 'right', color: '#999' },
+      ].forEach(({ v, align, color }) => {
+        const td = el('td', { style: 'padding:7px 10px;text-align:' + align + ';color:' + color + ';border-bottom:1px solid #1e1e1e;' });
+        td.textContent = v;
+        summaryTr.appendChild(td);
+      });
+      overviewTbody.appendChild(summaryTr);
+
+      // ── Village detail rows (expanded) ──
+      if (isExpanded) {
+        const detailTr = el('tr', { style: 'background:#0a0a0a;' });
+        const detailTd = el('td', { colSpan: 5, style: 'padding:6px 8px 10px 24px;border-bottom:1px solid #1e1e1e;' });
+        detailTd.appendChild(buildVillageDetail(mode, troopRows, defFlat, bldgRows, unitNames, buildingHeaders));
+        detailTr.appendChild(detailTd);
+        overviewTbody.appendChild(detailTr);
+      }
     });
 
     const mv = selectedMembers.length;
     overviewSummary.textContent = mv + ' member' + (mv !== 1 ? 's' : '') + ' • ' + totalVillages + ' village' + (totalVillages !== 1 ? 's' : '');
+  }
+
+  function buildVillageDetail(mode, troopRows, defFlat, bldgRows, unitNames, buildingHeaders) {
+    const wrap  = el('div', { style: 'overflow-x:auto;' });
+    const t     = el('table', { style: 'border-collapse:collapse;font-size:11px;white-space:nowrap;' });
+    const thead = el('thead');
+    const tbody = el('tbody');
+
+    const thS  = 'padding:4px 8px;color:#555;border-bottom:1px solid #222;font-weight:normal;text-align:right;';
+    const thSL = 'padding:4px 8px;color:#555;border-bottom:1px solid #222;font-weight:normal;text-align:left;';
+    const tdS  = 'padding:3px 8px;color:#aaa;border-bottom:1px solid #181818;text-align:right;';
+    const tdSL = 'padding:3px 8px;color:#aaa;border-bottom:1px solid #181818;text-align:left;';
+
+    function mkth(text, left) { const e = el('th', { style: left ? thSL : thS }); e.textContent = text; return e; }
+    function mktd(text, left) { const e = el('td', { style: left ? tdSL : tdS }); e.textContent = text; return e; }
+    function rowBg(i) { return i % 2 === 0 ? '' : 'background:#0d0d0d;'; }
+
+    const hr = el('tr');
+
+    if (mode === 'members_troops') {
+      hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'), mkth('Active'), mkth('Incoming'));
+      unitNames.forEach(u => hr.append(mkth(u)));
+      thead.appendChild(hr);
+      troopRows.forEach((r, i) => {
+        const tr = el('tr', { style: rowBg(i) });
+        tr.append(mktd(r.village, true), mktd(r.coords), mktd(r.points), mktd(r.active_commands), mktd(r.incoming));
+        r.units.forEach(v => tr.append(mktd(v)));
+        tbody.appendChild(tr);
+      });
+      if (!troopRows.length) tbody.innerHTML = '<tr><td colspan="' + (5 + unitNames.length) + '" style="color:#555;padding:6px 8px;">No troop data</td></tr>';
+
+    } else if (mode === 'members_defense') {
+      hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'), mkth('Incoming'));
+      unitNames.forEach(u => hr.append(mkth(u + ' in')));
+      unitNames.forEach(u => hr.append(mkth(u + ' en')));
+      thead.appendChild(hr);
+      defFlat.forEach((r, i) => {
+        const tr = el('tr', { style: rowBg(i) });
+        tr.append(mktd(r.village, true), mktd(r.coords), mktd(r.points), mktd(r.incoming));
+        r.in_village.forEach(v => tr.append(mktd(v)));
+        r.enroute.forEach(v => tr.append(mktd(v)));
+        tbody.appendChild(tr);
+      });
+      if (!defFlat.length) tbody.innerHTML = '<tr><td colspan="' + (4 + unitNames.length * 2) + '" style="color:#555;padding:6px 8px;">No defense data</td></tr>';
+
+    } else if (mode === 'members_buildings') {
+      hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'));
+      buildingHeaders.forEach(h => hr.append(mkth(h)));
+      thead.appendChild(hr);
+      bldgRows.forEach((r, i) => {
+        const tr = el('tr', { style: rowBg(i) });
+        tr.append(mktd(r.village, true), mktd(r.coords), mktd(r.points));
+        r.data.forEach(v => tr.append(mktd(v)));
+        tbody.appendChild(tr);
+      });
+      if (!bldgRows.length) tbody.innerHTML = '<tr><td colspan="' + (3 + buildingHeaders.length) + '" style="color:#555;padding:6px 8px;">No building data</td></tr>';
+
+    } else { // all_modes
+      hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'), mkth('Troops'), mkth('Def in'), mkth('Def en'), mkth('Bldg'));
+      thead.appendChild(hr);
+      const villMap = new Map();
+      troopRows.forEach(r => villMap.set(r.village, { v: r.village, c: r.coords, p: r.points, troops: r.units.reduce((a, b) => a + b, 0), defIn: 0, defEn: 0, bldg: false }));
+      defFlat.forEach(r => {
+        if (!villMap.has(r.village)) villMap.set(r.village, { v: r.village, c: r.coords, p: r.points, troops: 0, defIn: 0, defEn: 0, bldg: false });
+        const e = villMap.get(r.village);
+        e.defIn = r.in_village.reduce((a, b) => a + b, 0);
+        e.defEn = r.enroute.reduce((a, b) => a + b, 0);
+      });
+      bldgRows.forEach(r => {
+        if (!villMap.has(r.village)) villMap.set(r.village, { v: r.village, c: r.coords, p: r.points, troops: 0, defIn: 0, defEn: 0, bldg: false });
+        villMap.get(r.village).bldg = true;
+      });
+      Array.from(villMap.values()).forEach((r, i) => {
+        const tr = el('tr', { style: rowBg(i) });
+        tr.append(mktd(r.v, true), mktd(r.c), mktd(r.p), mktd(r.troops), mktd(r.defIn), mktd(r.defEn), mktd(r.bldg ? '✓' : '—'));
+        tbody.appendChild(tr);
+      });
+      if (!villMap.size) tbody.innerHTML = '<tr><td colspan="7" style="color:#555;padding:6px 8px;">No data</td></tr>';
+    }
+
+    t.append(thead, tbody);
+    wrap.appendChild(t);
+    return wrap;
   }
 
   async function initFetch() {
@@ -861,6 +968,7 @@
   membersCollapseBtn.onclick  = makeCollapseHandler(membersContent,  membersCollapseBtn);
   overviewCollapseBtn.onclick = makeCollapseHandler(overviewContent, overviewCollapseBtn);
   resultsCollapseBtn.onclick  = makeCollapseHandler(resultsContent,  resultsCollapseBtn);
+  Object.values(modeRadios).forEach(radio => radio.addEventListener('change', refreshOverview));
 
   helpCloseBtn.addEventListener('click', () => { helpOverlay.style.display = 'none'; });
   helpOverlay.addEventListener('click',  e => { if (e.target === helpOverlay) helpOverlay.style.display = 'none'; });
