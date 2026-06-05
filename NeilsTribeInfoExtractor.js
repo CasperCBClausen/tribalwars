@@ -241,18 +241,20 @@
     const headerRow = theadRows.length
       ? theadRows[theadRows.length - 1]
       : table.querySelector('tr:first-child');
-    if (!headerRow) return [];
-    return Array.from(headerRow.querySelectorAll('th')).map(th => {
+    if (!headerRow) return { texts: [], srcs: [] };
+    const texts = [], srcs = [];
+    Array.from(headerRow.querySelectorAll('th')).forEach(th => {
       const img = th.querySelector('img');
-      return (img && (img.getAttribute('data-title') || img.getAttribute('alt') || img.getAttribute('title')))
-        || th.textContent.trim();
+      texts.push((img && (img.getAttribute('data-title') || img.getAttribute('alt') || img.getAttribute('title'))) || th.textContent.trim());
+      srcs.push(img ? (img.src || '') : '');
     });
+    return { texts, srcs };
   }
 
   function parseGenericUnitPage(doc, player) {
     const table = findUnitTable(doc);
-    if (!table) return { headers: [], rows: [] };
-    const headers = readUnitTableHeaders(table);
+    if (!table) return { headers: [], headerSrcs: [], rows: [] };
+    const { texts, srcs } = readUnitTableHeaders(table);
     const rows = [];
 
     table.querySelectorAll('tbody tr').forEach(tr => {
@@ -267,7 +269,7 @@
       rows.push({ player_name: player.name, player_id: player.id, village, coords, points, data });
     });
 
-    return { headers: headers.slice(2), rows };
+    return { headers: texts.slice(2), headerSrcs: srcs.slice(2), rows };
   }
 
   /* ── Export ── */
@@ -597,7 +599,7 @@
 
   let lastCSV  = '';
   let lastJSON = '';
-  let cachedData = { unitNames: [], buildingHeaders: [], members: [], troops: {}, defenseRaw: {}, buildings: {} };
+  let cachedData = { unitNames: [], unitImgSrcs: [], buildingHeaders: [], buildingImgSrcs: [], members: [], troops: {}, defenseRaw: {}, buildings: {} };
   const expandedPlayers = new Set();
 
   /* ── Member List Builder ── */
@@ -689,7 +691,7 @@
   function refreshOverview() {
     const selectedIds   = getSelectedMemberIds();
     const selectedModes = getSelectedModes();
-    const { members, unitNames, unitImgSrcs, buildingHeaders } = cachedData;
+    const { members, unitNames, unitImgSrcs, buildingHeaders, buildingImgSrcs } = cachedData;
 
     if (!members.length) {
       overviewTbody.innerHTML = '<tr><td colspan="6" style="color:#888;text-align:center;padding:16px;">No data loaded yet</td></tr>';
@@ -746,7 +748,7 @@
       if (isExpanded) {
         const detailTr = el('tr', { style: 'background:#0a0a0a;' });
         const detailTd = el('td', { colSpan: 6, style: 'padding:0;border-bottom:1px solid #1e1e1e;' });
-        detailTd.appendChild(buildVillageDetail(selectedModes, troopRows, defFlat, bldgRows, unitNames, unitImgSrcs, buildingHeaders));
+        detailTd.appendChild(buildVillageDetail(selectedModes, troopRows, defFlat, bldgRows, unitNames, unitImgSrcs, buildingHeaders, buildingImgSrcs));
         detailTr.appendChild(detailTd);
         overviewTbody.appendChild(detailTr);
       }
@@ -756,7 +758,7 @@
     overviewSummary.textContent = mv + ' member' + (mv !== 1 ? 's' : '') + ' • ' + totalVillages + ' village' + (totalVillages !== 1 ? 's' : '');
   }
 
-  function buildVillageDetail(selectedModes, troopRows, defFlat, bldgRows, unitNames, unitImgSrcs, buildingHeaders) {
+  function buildVillageDetail(selectedModes, troopRows, defFlat, bldgRows, unitNames, unitImgSrcs, buildingHeaders, buildingImgSrcs) {
     const outer = el('div', { style: 'display:flex;flex-direction:column;' });
 
     if (!selectedModes.length) {
@@ -766,13 +768,15 @@
       return outer;
     }
 
-    const thS  = 'padding:4px 8px;color:#555;border-bottom:1px solid #222;font-weight:normal;text-align:right;white-space:nowrap;';
-    const thSL = 'padding:4px 8px;color:#555;border-bottom:1px solid #222;font-weight:normal;text-align:left;white-space:nowrap;';
-    const tdS  = 'padding:3px 8px;color:#aaa;border-bottom:1px solid #181818;text-align:right;vertical-align:middle;';
-    const tdSL = 'padding:3px 8px;color:#aaa;border-bottom:1px solid #181818;text-align:left;vertical-align:middle;';
+    const thS   = 'padding:4px 8px;color:#555;border-bottom:1px solid #222;font-weight:normal;text-align:right;white-space:nowrap;';
+    const thSL  = 'padding:4px 8px;color:#555;border-bottom:1px solid #222;font-weight:normal;text-align:left;white-space:nowrap;';
+    const tdS   = 'padding:3px 8px;color:#aaa;border-bottom:1px solid #181818;text-align:right;vertical-align:middle;';
+    const tdSL  = 'padding:3px 8px;color:#aaa;border-bottom:1px solid #181818;text-align:left;vertical-align:middle;';
+    const tdVill = 'padding:3px 8px;color:#aaa;border-bottom:1px solid #181818;text-align:left;vertical-align:middle;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
 
     function mkth(text, left) { const e = el('th', { style: left ? thSL : thS }); e.textContent = text; return e; }
     function mktd(text, left) { const e = el('td', { style: left ? tdSL : tdS }); e.textContent = text; return e; }
+    function mktdV(text) { const e = el('td', { style: tdVill, title: text }); e.textContent = text; return e; }
     function mkthImg(slug, src) {
       const e = el('th', { style: thS, title: slug });
       if (src) {
@@ -808,7 +812,7 @@
           thead.appendChild(hr);
           troopRows.forEach((r, i) => {
             const tr = el('tr', { style: rBg(i) });
-            tr.append(mktd(r.village, true), mktd(r.coords), mktd(r.points), mktd(r.active_commands), mktd(r.incoming));
+            tr.append(mktdV(r.village), mktd(r.coords), mktd(r.points), mktd(r.active_commands), mktd(r.incoming));
             activeIdx.forEach(j => tr.append(mktd(r.units[j] || 0)));
             tbody.appendChild(tr);
           });
@@ -817,9 +821,7 @@
         }));
 
       } else if (mode === 'members_defense') {
-        // Only show units with at least one non-zero value across in_village or enroute
         const activeIdx = unitNames.map((_, i) => i).filter(i => defFlat.some(r => (r.in_village[i] || 0) > 0 || (r.enroute[i] || 0) > 0));
-        // Each village gets 2 sub-rows (in village / en route) with rowspan on village/coords/points/incoming
         outer.appendChild(makeSection(MODES[mode], t => {
           const thead = el('thead'), tbody = el('tbody'), hr = el('tr');
           hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'), mkth('Inc'), mkth(''));
@@ -827,17 +829,15 @@
           thead.appendChild(hr);
           defFlat.forEach((r, i) => {
             const bg = rBg(i);
-            // in-village row
             const tr1 = el('tr', { style: bg });
-            const tdV = el('td', { rowSpan: 2, style: tdSL }); tdV.textContent = r.village; tr1.appendChild(tdV);
-            const tdC = el('td', { rowSpan: 2, style: tdS });  tdC.textContent = r.coords;  tr1.appendChild(tdC);
-            const tdP = el('td', { rowSpan: 2, style: tdS });  tdP.textContent = r.points;  tr1.appendChild(tdP);
+            const tdV = el('td', { rowSpan: 2, style: tdVill, title: r.village }); tdV.textContent = r.village; tr1.appendChild(tdV);
+            const tdC = el('td', { rowSpan: 2, style: tdS });  tdC.textContent = r.coords;   tr1.appendChild(tdC);
+            const tdP = el('td', { rowSpan: 2, style: tdS });  tdP.textContent = r.points;   tr1.appendChild(tdP);
             const tdI = el('td', { rowSpan: 2, style: tdS });  tdI.textContent = r.incoming; tr1.appendChild(tdI);
             const lbl1 = el('td', { style: 'padding:3px 6px;color:#555;font-size:10px;border-bottom:1px solid #181818;text-align:left;vertical-align:middle;white-space:nowrap;' });
             lbl1.textContent = 'in'; tr1.appendChild(lbl1);
             activeIdx.forEach(j => tr1.append(mktd(r.in_village[j] || 0)));
             tbody.appendChild(tr1);
-            // en-route row
             const tr2 = el('tr', { style: bg });
             const lbl2 = el('td', { style: 'padding:3px 6px;color:#555;font-size:10px;border-bottom:1px solid #222;text-align:left;vertical-align:middle;white-space:nowrap;' });
             lbl2.textContent = 'en'; tr2.appendChild(lbl2);
@@ -856,11 +856,11 @@
         outer.appendChild(makeSection(MODES[mode], t => {
           const thead = el('thead'), tbody = el('tbody'), hr = el('tr');
           hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'));
-          buildingHeaders.forEach(h => hr.append(mkth(h)));
+          buildingHeaders.forEach((h, i) => hr.append(mkthImg(h, (buildingImgSrcs || [])[i] || '')));
           thead.appendChild(hr);
           bldgRows.forEach((r, i) => {
             const tr = el('tr', { style: rBg(i) });
-            tr.append(mktd(r.village, true), mktd(r.coords), mktd(r.points));
+            tr.append(mktdV(r.village), mktd(r.coords), mktd(r.points));
             r.data.forEach(v => tr.append(mktd(v)));
             tbody.appendChild(tr);
           });
@@ -880,7 +880,7 @@
       return;
     }
 
-    cachedData = { unitNames: [], unitImgSrcs: [], buildingHeaders: [], members: [], troops: {}, defenseRaw: {}, buildings: {} };
+    cachedData = { unitNames: [], unitImgSrcs: [], buildingHeaders: [], buildingImgSrcs: [], members: [], troops: {}, defenseRaw: {}, buildings: {} };
     let fetchCount = 0;
 
     async function doFetch(mode, playerId) {
@@ -944,7 +944,7 @@
         const doc = await doFetch('members_buildings', m.id);
         const r = parseGenericUnitPage(doc, m);
         cachedData.buildings[m.id] = r.rows;
-        if (!cachedData.buildingHeaders.length && r.headers.length) cachedData.buildingHeaders = r.headers;
+        if (!cachedData.buildingHeaders.length && r.headers.length) { cachedData.buildingHeaders = r.headers; cachedData.buildingImgSrcs = r.headerSrcs; }
       } catch (e) { showMessage('Buildings error — ' + m.name + ': ' + e.message); }
     }
 
