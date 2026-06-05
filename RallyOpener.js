@@ -821,6 +821,9 @@
 
   // Draggable
   (function makeDraggable() {
+    // Section content areas — drag does not activate when clicking inside these
+    const noDragZones = [templatesContent, rallyContent, attackPlanContent, msgBox];
+
     let isDragging = false, startX = 0, startY = 0, initLeft = 0, initTop = 0;
 
     function onMouseDown(e) {
@@ -828,6 +831,7 @@
       if (t === closeBtn) return;
       if (['BUTTON','INPUT','TEXTAREA','SELECT','LABEL'].indexOf(t.tagName) !== -1) return;
       if (t.closest && t.closest('button,input,textarea,select,label')) return;
+      if (noDragZones.some(z => z.contains(t))) return;
       e.preventDefault();
       isDragging = true;
       startX = e.clientX; startY = e.clientY;
@@ -853,8 +857,7 @@
       document.onmouseup   = null;
     }
 
-    titleBar.onmousedown = onMouseDown;
-    body.onmousedown     = onMouseDown;
+    container.onmousedown = onMouseDown;
   })();
 
   // Close

@@ -706,12 +706,16 @@
 
   // Draggable
   (function makeDraggable() {
+    // Section content areas — drag does not activate when clicking inside these
+    const noDragZones = [navContent, membersContent, extractContent, resultsContent, discoverContent, msgBox];
+
     let drag = false, sx = 0, sy = 0, il = 0, it = 0;
     function onDown(e) {
       const t = e.target;
       if (t === closeBtn) return;
       if (['BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'LABEL'].indexOf(t.tagName) !== -1) return;
       if (t.closest && t.closest('button,input,textarea,select,label')) return;
+      if (noDragZones.some(z => z.contains(t))) return;
       e.preventDefault();
       drag = true;
       sx = e.clientX; sy = e.clientY;
@@ -728,8 +732,7 @@
       container.style.transform = 'none';
     }
     function onUp() { drag = false; document.onmousemove = null; document.onmouseup = null; }
-    titleBar.onmousedown = onDown;
-    body.onmousedown     = onDown;
+    container.onmousedown = onDown;
   })();
 
   closeBtn.addEventListener('click', () => container.remove());
