@@ -402,15 +402,12 @@
 
   /* ── Message System ── */
 
-  let msgBox;
+  let msgBar;
   const messageHistory = [];
 
-  function showMessage(msg, timeout) {
+  function showMessage(msg) {
     messageHistory.push({ text: msg, time: new Date() });
-    if (!msgBox) return;
-    msgBox.textContent = msg;
-    if (msgBox._t) clearTimeout(msgBox._t);
-    msgBox._t = setTimeout(() => { msgBox.textContent = ''; }, timeout || 4000);
+    if (msgBar) msgBar.textContent = msg;
   }
 
   /* ── UI Helpers ── */
@@ -458,60 +455,24 @@
   const titleWrapper = el('div', { style: 'text-align:center;position:relative;' });
   const titleEl      = el('div', { style: 'font-size:20px;font-weight:bold;color:#e0e0e0;text-shadow:2px 2px 4px rgba(0,0,0,0.6);letter-spacing:1px;' });
   titleEl.textContent = 'TRIBE INFO EXTRACTOR';
-
   const btnGlobalHelp = el('button', { innerText: '?', title: 'Help', type: 'button', style: 'position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 9px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:4px;font-size:14px;font-weight:bold;' });
   const closeBtn      = el('button', { innerText: '✕', title: 'Close', style: 'position:absolute;right:0;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 10px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;font-size:16px;font-weight:bold;' });
-
   titleWrapper.append(titleEl, closeBtn);
   titleBar.append(btnGlobalHelp, titleWrapper);
   container.appendChild(titleBar);
 
+  // ── Message Bar (always visible, click for history) ──
+  msgBar = el('div', {
+    style: 'padding:6px 16px;background:#0d0d0d;border-bottom:1px solid #2a2a2a;font-size:12px;color:#aaa;' +
+           'cursor:pointer;min-height:30px;display:flex;align-items:center;flex-shrink:0;',
+    title: 'Click to view message history',
+  });
+  msgBar.textContent = 'Initialising…';
+  container.appendChild(msgBar);
+
   // ── Scrollable Body ──
   const body = el('div', { style: 'padding:16px;overflow-y:auto;flex:1;' });
   container.appendChild(body);
-
-  // ── Navigation Section ──
-  const navSection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
-  const navSectionHeader = el('div', { style: 'display:flex;align-items:center;margin-bottom:10px;' });
-  const navSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;font-size:13px;flex:1;text-align:center;' });
-  navSectionTitle.textContent = 'Navigation';
-  const navCollapseBtn   = el('button', { innerText: '−', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
-  navSectionHeader.append(navSectionTitle, navCollapseBtn);
-  navSection.appendChild(navSectionHeader);
-
-  const navContent = el('div');
-
-  const navBtnRow = el('div', { style: 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:10px;' });
-  Object.keys(MODES).forEach(mode => {
-    const isActive = currentMode === mode;
-    const btn = el('button', {
-      innerText: MODES[mode],
-      type:      'button',
-      style:     'cursor:pointer;padding:8px 18px;font-size:12px;font-weight:' + (isActive ? 'bold' : 'normal') + ';border-radius:4px;' +
-                 'border:1px solid ' + (isActive ? '#3a7a3a' : '#4a4a4a') + ';' +
-                 'background:' + (isActive ? '#1a4a1a' : '#2a2a2a') + ';' +
-                 'color:' + (isActive ? '#6f6' : '#fff') + ';',
-    });
-    if (isActive) {
-      btn.style.cursor = 'default';
-      btn.title = 'Currently on this page';
-    } else {
-      btn.onclick = () => window.location.href = buildAllyUrl(mode);
-    }
-    navBtnRow.appendChild(btn);
-  });
-
-  const navStatusBar = el('div', { style: 'padding:6px;border-radius:4px;text-align:center;font-size:12px;' +
-    (isAllyPage && isKnownMode
-      ? 'background:#0a1a0a;border:1px solid #2a5a2a;color:#6d6;'
-      : 'background:#0a0a1a;border:1px solid #2a2a5a;color:#88f;') });
-  navStatusBar.textContent = isAllyPage && isKnownMode
-    ? '✓ Currently viewing ' + MODES[currentMode]
-    : 'Data is fetched automatically — navigation links above are optional shortcuts.';
-
-  navContent.append(navBtnRow, navStatusBar);
-  navSection.appendChild(navContent);
-  body.appendChild(navSection);
 
   // ── Members Section ──
   const membersSection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
@@ -522,54 +483,56 @@
   membersSectionHeader.append(membersSectionTitle, membersCollapseBtn);
   membersSection.appendChild(membersSectionHeader);
 
-  const membersContent = el('div');
-
-  const membersTopRow = el('div', { style: 'display:flex;gap:8px;align-items:center;margin-bottom:8px;' });
+  const membersContent    = el('div');
+  const membersTopRow     = el('div', { style: 'display:flex;gap:8px;align-items:center;margin-bottom:8px;' });
   const membersCountLabel = el('span', { style: 'font-size:12px;color:#888;flex:1;' });
-  const btnSelectAll   = el('button', { innerText: 'All',  type: 'button', style: 'cursor:pointer;padding:4px 10px;background:#2a3a2a;color:#aaa;border:1px solid #3a5a3a;border-radius:3px;font-size:11px;' });
-  const btnSelectNone  = el('button', { innerText: 'None', type: 'button', style: 'cursor:pointer;padding:4px 10px;background:#2a2a2a;color:#aaa;border:1px solid #4a4a4a;border-radius:3px;font-size:11px;' });
+  const btnSelectAll      = el('button', { innerText: 'All',  type: 'button', style: 'cursor:pointer;padding:4px 10px;background:#2a3a2a;color:#aaa;border:1px solid #3a5a3a;border-radius:3px;font-size:11px;' });
+  const btnSelectNone     = el('button', { innerText: 'None', type: 'button', style: 'cursor:pointer;padding:4px 10px;background:#2a2a2a;color:#aaa;border:1px solid #4a4a4a;border-radius:3px;font-size:11px;' });
   membersTopRow.append(membersCountLabel, btnSelectAll, btnSelectNone);
-
-  const membersList = el('div', { style: 'display:flex;flex-wrap:wrap;gap:6px;' });
-
-  const memberCheckboxes = {};
-
+  const membersList       = el('div', { style: 'display:flex;flex-wrap:wrap;gap:6px;' });
+  const memberCheckboxes  = {};
   membersContent.append(membersTopRow, membersList);
   membersSection.appendChild(membersContent);
   body.appendChild(membersSection);
 
-  // ── Extract Section ──
-  const extractSection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
-  const extractSectionHeader = el('div', { style: 'display:flex;align-items:center;margin-bottom:10px;' });
-  const extractSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;font-size:13px;flex:1;text-align:center;' });
-  extractSectionTitle.textContent = 'Progress';
-  const extractCollapseBtn   = el('button', { innerText: '−', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
-  extractSectionHeader.append(extractSectionTitle, extractCollapseBtn);
-  extractSection.appendChild(extractSectionHeader);
+  // ── Overview Section ──
+  const overviewSection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
+  const overviewSectionHeader = el('div', { style: 'display:flex;align-items:center;margin-bottom:10px;' });
+  const overviewSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;font-size:13px;flex:1;text-align:center;' });
+  overviewSectionTitle.textContent = 'Overview';
+  const overviewCollapseBtn   = el('button', { innerText: '−', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
+  overviewSectionHeader.append(overviewSectionTitle, overviewCollapseBtn);
+  overviewSection.appendChild(overviewSectionHeader);
 
-  const extractContent = el('div');
-  const progressBox = el('div', { style: 'padding:8px;background:#0a0a0a;border:1px solid #2a2a2a;border-radius:4px;font-size:12px;font-family:monospace;color:#aaa;min-height:36px;white-space:pre-wrap;' });
-  progressBox.textContent = 'Initialising...';
-  extractContent.appendChild(progressBox);
-  extractSection.appendChild(extractContent);
-  body.appendChild(extractSection);
+  const overviewContent = el('div');
+  const overviewSummary = el('div', { style: 'font-size:12px;color:#888;text-align:center;margin-bottom:10px;' });
+  const overviewTable   = el('table', { style: 'width:100%;border-collapse:collapse;font-size:12px;' });
+  const overviewThead   = el('thead');
+  const overviewThr     = el('tr');
+  ['Member', 'Villages', 'Troops', 'Def in-village', 'Def en route', 'Buildings'].forEach((h, i) => {
+    const th = el('th', { style: 'padding:6px 10px;text-align:' + (i === 0 ? 'left' : 'right') + ';color:#8ac;border-bottom:2px solid #2a2a4a;background:#0a0a1a;font-weight:bold;white-space:nowrap;' });
+    th.textContent = h;
+    overviewThr.appendChild(th);
+  });
+  overviewThead.appendChild(overviewThr);
+  const overviewTbody = el('tbody');
+  overviewTable.append(overviewThead, overviewTbody);
+  overviewContent.append(overviewSummary, overviewTable);
+  overviewSection.appendChild(overviewContent);
+  body.appendChild(overviewSection);
 
-  // ── Results Section ──
+  // ── Export Section ──
   const resultsSection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
   const resultsSectionHeader = el('div', { style: 'display:flex;align-items:center;margin-bottom:10px;' });
   const resultsSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;font-size:13px;flex:1;text-align:center;' });
   resultsSectionTitle.textContent = 'Export';
-  const resultsCollapseBtn   = el('button', { innerText: '+', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
+  const resultsCollapseBtn   = el('button', { innerText: '−', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
   resultsSectionHeader.append(resultsSectionTitle, resultsCollapseBtn);
   resultsSection.appendChild(resultsSectionHeader);
 
-  const resultsContent = el('div', { style: 'display:none;' });
-
-  const resultsSummary = el('div', { style: 'font-size:12px;color:#888;text-align:center;margin-bottom:8px;min-height:16px;' });
-
-  // Mode selector (for export — not for fetching)
-  const modeRow    = el('div', { style: 'display:flex;gap:8px;justify-content:center;margin-bottom:10px;flex-wrap:wrap;' });
-  const modeRadios = {};
+  const resultsContent = el('div');
+  const modeRow        = el('div', { style: 'display:flex;gap:8px;justify-content:center;margin-bottom:10px;flex-wrap:wrap;' });
+  const modeRadios     = {};
   Object.keys(MODES).forEach((mode, idx) => {
     const label = el('label', { style: 'display:flex;align-items:center;gap:5px;cursor:pointer;padding:6px 12px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:4px;font-size:12px;color:#bbb;' });
     const radio  = el('input', { type: 'radio', name: 'export_mode', value: mode, style: 'cursor:pointer;' });
@@ -585,53 +548,13 @@
     label.append(radio, document.createTextNode('All Modes'));
     modeRow.appendChild(label);
   }
-
-  const exportRow   = el('div', { style: 'display:flex;gap:8px;justify-content:center;margin-bottom:10px;flex-wrap:wrap;' });
+  const exportRow   = el('div', { style: 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap;' });
   const btnCopyCSV  = el('button', { innerText: 'Copy CSV',  type: 'button', style: 'cursor:pointer;padding:8px 18px;background:#2a3a5a;color:#fff;border:1px solid #3a5a7a;border-radius:4px;font-size:12px;' });
   const btnCopyJSON = el('button', { innerText: 'Copy JSON', type: 'button', style: 'cursor:pointer;padding:8px 18px;background:#2a3a5a;color:#fff;border:1px solid #3a5a7a;border-radius:4px;font-size:12px;' });
   exportRow.append(btnCopyCSV, btnCopyJSON);
-
-  const resultsOutput = el('div', { style: 'background:#0a0a0a;border:1px solid #2a2a2a;border-radius:4px;padding:10px;font-family:monospace;font-size:11px;color:#ccc;max-height:320px;overflow-y:auto;white-space:pre;overflow-x:auto;min-height:60px;' });
-  resultsOutput.textContent = 'Loading data...';
-
-  resultsContent.append(resultsSummary, modeRow, exportRow, resultsOutput);
+  resultsContent.append(modeRow, exportRow);
   resultsSection.appendChild(resultsContent);
   body.appendChild(resultsSection);
-
-  // ── Discovery Section ──
-  const discoverSection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
-  const discoverSectionHeader = el('div', { style: 'display:flex;align-items:center;margin-bottom:8px;' });
-  const discoverSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;font-size:13px;flex:1;text-align:center;' });
-  discoverSectionTitle.textContent = 'Page Structure (Discovery)';
-  const discoverCollapseBtn   = el('button', { innerText: '+', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
-  const discoverHelpBtn       = el('button', { innerText: '?', type: 'button', style: 'cursor:pointer;padding:2px 7px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:3px;font-size:13px;font-weight:bold;line-height:1;margin-right:4px;' });
-  discoverSectionHeader.append(discoverHelpBtn, discoverSectionTitle, discoverCollapseBtn);
-  discoverSection.appendChild(discoverSectionHeader);
-
-  const discoverContent  = el('div', { style: 'display:none;' });
-  const btnScan          = el('button', { innerText: 'Scan Current Page Structure', type: 'button', style: 'cursor:pointer;padding:8px 20px;background:#5a3a2a;color:#fff;border:1px solid #7a5a3a;border-radius:4px;font-weight:bold;margin-bottom:10px;' });
-  const discoverOutput   = el('div', { style: 'background:#0a0a0a;border:1px solid #2a2a2a;border-radius:4px;padding:10px;font-family:monospace;font-size:11px;color:#ccc;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;min-height:60px;' });
-  discoverOutput.textContent = 'Scan to inspect table structure — useful for Troops and Buildings pages.';
-  discoverContent.append(btnScan, discoverOutput);
-  discoverSection.appendChild(discoverContent);
-  body.appendChild(discoverSection);
-
-  // ── Message Box ──
-  msgBox = el('div', { style: 'color:#9f9f9f;min-height:18px;text-align:center;padding:5px;background:#0a0a0a;border-radius:4px;border:1px solid #2a2a2a;cursor:pointer;', title: 'Click to view message history' });
-  body.appendChild(msgBox);
-
-  // ── Message History Overlay ──
-  const msgHistoryOverlay  = el('div', { style: 'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:200000;display:none;align-items:center;justify-content:center;' });
-  const msgHistoryContent  = el('div', { style: 'background:#1a1a1a;color:#fff;padding:20px;border-radius:8px;border:2px solid #444;max-width:480px;width:90%;max-height:60vh;display:flex;flex-direction:column;' });
-  const msgHistoryTitle    = el('div', { style: 'font-size:16px;font-weight:bold;margin-bottom:12px;color:#e0e0e0;flex-shrink:0;' });
-  msgHistoryTitle.textContent = 'Message History';
-  const msgHistoryList     = el('div', { style: 'overflow-y:auto;flex:1;' });
-  const msgHistoryCloseRow = el('div', { style: 'display:flex;justify-content:center;margin-top:12px;flex-shrink:0;' });
-  const msgHistoryCloseBtn = el('button', { innerText: 'Close', type: 'button', style: 'cursor:pointer;padding:8px 24px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;' });
-  msgHistoryCloseRow.appendChild(msgHistoryCloseBtn);
-  msgHistoryContent.append(msgHistoryTitle, msgHistoryList, msgHistoryCloseRow);
-  msgHistoryOverlay.appendChild(msgHistoryContent);
-  document.body.appendChild(msgHistoryOverlay);
 
   // ── Footer ──
   const footer = el('div', { style: 'padding:10px;background:linear-gradient(135deg,#1a1a1a 0%,#0a0a0a 100%);border-bottom-left-radius:6px;border-bottom-right-radius:6px;border-top:2px solid #444;text-align:center;flex-shrink:0;' });
@@ -652,6 +575,19 @@
   helpContent.append(helpTitle, helpText, helpCloseRow);
   helpOverlay.appendChild(helpContent);
   document.body.appendChild(helpOverlay);
+
+  // ── Message History Overlay ──
+  const msgHistoryOverlay  = el('div', { style: 'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:200000;display:none;align-items:center;justify-content:center;' });
+  const msgHistoryContent  = el('div', { style: 'background:#1a1a1a;color:#fff;padding:20px;border-radius:8px;border:2px solid #444;max-width:480px;width:90%;max-height:60vh;display:flex;flex-direction:column;' });
+  const msgHistoryTitle    = el('div', { style: 'font-size:16px;font-weight:bold;margin-bottom:12px;color:#e0e0e0;flex-shrink:0;' });
+  msgHistoryTitle.textContent = 'Message History';
+  const msgHistoryList     = el('div', { style: 'overflow-y:auto;flex:1;' });
+  const msgHistoryCloseRow = el('div', { style: 'display:flex;justify-content:center;margin-top:12px;flex-shrink:0;' });
+  const msgHistoryCloseBtn = el('button', { innerText: 'Close', type: 'button', style: 'cursor:pointer;padding:8px 24px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;' });
+  msgHistoryCloseRow.appendChild(msgHistoryCloseBtn);
+  msgHistoryContent.append(msgHistoryTitle, msgHistoryList, msgHistoryCloseRow);
+  msgHistoryOverlay.appendChild(msgHistoryContent);
+  document.body.appendChild(msgHistoryOverlay);
 
   /* ── State ── */
 
@@ -679,6 +615,7 @@
       const label = el('label', { style: 'display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 10px;background:#1a1a1a;border:1px solid #333;border-radius:4px;font-size:12px;color:#ddd;' });
       const cb    = el('input', { type: 'checkbox', checked: true, style: 'cursor:pointer;' });
       memberCheckboxes[m.id] = { cb, member: m };
+      cb.addEventListener('change', refreshOverview);
       const nameSpan = el('span');
       nameSpan.textContent = m.name;
       const idSpan = el('span', { style: 'color:#555;font-size:10px;' });
@@ -721,24 +658,11 @@
       const rows = pick(cachedData.troops);
       lastCSV  = troopsToCSV(rows, unitNames);
       lastJSON = troopsToJSON(rows, unitNames);
-      const N  = new Set(rows.map(r => r.player_id)).size;
-      resultsSummary.textContent = N + ' member(s) — ' + rows.length + ' village(s)';
-      resultsOutput.textContent = rows.slice(0, 10).map(r =>
-        r.player_name.padEnd(12) + '  ' + r.coords.padEnd(9) + '  pts:' + String(r.points).padEnd(5) +
-        '  out:' + String(r.active_commands).padEnd(3) + '  in:' + String(r.incoming).padEnd(3) +
-        '  spear:' + (r.units[0] || 0) + '  sword:' + (r.units[1] || 0)
-      ).join('\n') + (rows.length > 10 ? '\n... (' + (rows.length - 10) + ' more)' : '');
 
     } else if (mode === 'members_defense') {
       const flat = flattenDefenseRows(pick(cachedData.defenseRaw));
       lastCSV  = defenseToCSV(flat, unitNames);
       lastJSON = defenseToJSON(flat, unitNames);
-      const N  = new Set(flat.map(r => r.player_id)).size;
-      resultsSummary.textContent = N + ' member(s) — ' + flat.length + ' village(s)';
-      resultsOutput.textContent = flat.slice(0, 10).map(r =>
-        r.player_name.padEnd(12) + '  ' + r.coords.padEnd(9) + '  pts:' + String(r.points).padEnd(5) +
-        '  atk_in:' + String(r.incoming).padEnd(3) + '  spear:' + r.in_village[0] + '/' + r.enroute[0]
-      ).join('\n') + (flat.length > 10 ? '\n... (' + (flat.length - 10) + ' more)' : '');
 
     } else if (mode === 'members_buildings') {
       const rows = pick(cachedData.buildings);
@@ -748,11 +672,6 @@
         buildingHeaders.forEach((h, i) => { obj[h] = r.data[i] || ''; });
         return obj;
       })), null, 2);
-      const N  = new Set(rows.map(r => r.player_id)).size;
-      resultsSummary.textContent = N + ' member(s) — ' + rows.length + ' village(s)';
-      resultsOutput.textContent = rows.slice(0, 10).map(r =>
-        r.player_name.padEnd(12) + '  ' + (r.coords || '').padEnd(9) + '  pts:' + String(r.points).padEnd(5) + '  ' + r.data.slice(0, 5).join('  ')
-      ).join('\n') + (rows.length > 10 ? '\n... (' + (rows.length - 10) + ' more)' : '');
 
     } else { // all_modes
       const troopRows = pick(cachedData.troops);
@@ -761,19 +680,59 @@
       const combined  = combineAllModes(troopRows, flat, buildRows, unitNames, buildingHeaders);
       lastCSV  = combinedToCSV(combined, unitNames, buildingHeaders);
       lastJSON = combinedToJSON(combined, unitNames, buildingHeaders);
-      const N  = new Set(combined.map(r => r.player_id)).size;
-      resultsSummary.textContent = N + ' member(s) — ' + combined.length + ' village(s)';
-      resultsOutput.textContent = combined.slice(0, 5).map(r =>
-        r.player_name.padEnd(12) + '  ' + (r.coords || '').padEnd(9) + '  pts:' + String(r.points).padEnd(5) +
-        '  spear:' + (r.troops[0] || 0) + '  spear_iv:' + (r.in_village[0] || 0) + '  bldg[0]:' + (r.buildings[0] || '-')
-      ).join('\n') + (combined.length > 5 ? '\n... (' + (combined.length - 5) + ' more)' : '');
     }
+  }
+
+  function refreshOverview() {
+    const selectedIds = getSelectedMemberIds();
+    const { members } = cachedData;
+
+    if (!members.length) {
+      overviewTbody.innerHTML = '<tr><td colspan="6" style="color:#888;text-align:center;padding:16px;">No data loaded yet</td></tr>';
+      overviewSummary.textContent = '';
+      return;
+    }
+
+    const fmt = n => Number(n).toLocaleString();
+    const selectedMembers = members.filter(m => selectedIds.has(m.id));
+    let totalVillages = 0;
+    overviewTbody.innerHTML = '';
+
+    selectedMembers.forEach((m, idx) => {
+      const troopRows = cachedData.troops[m.id]     || [];
+      const defFlat   = flattenDefenseRows(cachedData.defenseRaw[m.id] || []);
+      const bldgRows  = cachedData.buildings[m.id]  || [];
+
+      const troopTotal = troopRows.reduce((s, r) => s + r.units.reduce((a, b) => a + b, 0), 0);
+      const defIn      = defFlat.reduce((s, r) => s + r.in_village.reduce((a, b) => a + b, 0), 0);
+      const defEn      = defFlat.reduce((s, r) => s + r.enroute.reduce((a, b) => a + b, 0), 0);
+      const villCount  = troopRows.length || defFlat.length || bldgRows.length;
+      totalVillages   += villCount;
+
+      const rowEl = el('tr', { style: 'background:' + (idx % 2 === 0 ? '#111' : '#0d0d0d') + ';' });
+      [
+        { v: m.name,                                              align: 'left'  },
+        { v: villCount,                                           align: 'right' },
+        { v: fmt(troopTotal),                                     align: 'right' },
+        { v: fmt(defIn),                                          align: 'right' },
+        { v: fmt(defEn),                                          align: 'right' },
+        { v: bldgRows.length ? bldgRows.length + ' vills' : '—', align: 'right' },
+      ].forEach(({ v, align }) => {
+        const td = el('td', { style: 'padding:5px 10px;text-align:' + align + ';color:#ddd;border-bottom:1px solid #1a1a1a;' });
+        td.textContent = v;
+        rowEl.appendChild(td);
+      });
+      overviewTbody.appendChild(rowEl);
+    });
+
+    const mv = selectedMembers.length;
+    overviewSummary.textContent = mv + ' member' + (mv !== 1 ? 's' : '') + ' • ' + totalVillages + ' village' + (totalVillages !== 1 ? 's' : '');
   }
 
   async function initFetch() {
     const myId = String((window.game_data && game_data.player && game_data.player.id) || '');
     if (!myId) {
-      progressBox.textContent = '✗ Could not read player ID from game_data — are you logged in?';
+      showMessage('✗ Could not read player ID from game_data — are you logged in?');
       return;
     }
 
@@ -788,10 +747,11 @@
 
     // ── Troops (first fetch also gives member list) ──
     try {
+      showMessage('Fetching member list…');
       const firstDoc = await doFetch('members_troops', myId);
       const allMembers = getMembersFromDoc(firstDoc);
       if (!allMembers.length) {
-        progressBox.textContent = '✗ No members found in dropdown — do you have tribe rights to view member info?';
+        showMessage('✗ No members found — do you have tribe rights to view member info?');
         return;
       }
       cachedData.members = allMembers;
@@ -805,16 +765,16 @@
       const others = allMembers.filter(m => m.id !== myId);
       for (let i = 0; i < others.length; i++) {
         const m = others[i];
-        progressBox.textContent = 'Troops (' + (i + 2) + '/' + allMembers.length + ') ' + m.name + '...';
+        showMessage('Troops (' + (i + 2) + '/' + allMembers.length + ') ' + m.name + '…');
         try {
           const doc = await doFetch('members_troops', m.id);
           const r = parseTroopsPage(doc, m);
           cachedData.troops[m.id] = r.rows;
           if (!cachedData.unitNames.length && r.unitNames.length) cachedData.unitNames = r.unitNames;
-        } catch (e) { showMessage('Troops — ' + m.name + ': ' + e.message); }
+        } catch (e) { showMessage('Troops error — ' + m.name + ': ' + e.message); }
       }
     } catch (e) {
-      progressBox.textContent = '✗ Failed on first fetch: ' + e.message;
+      showMessage('✗ Failed on first fetch: ' + e.message);
       return;
     }
 
@@ -823,67 +783,36 @@
     // ── Defense ──
     for (let i = 0; i < allMembers.length; i++) {
       const m = allMembers[i];
-      progressBox.textContent = 'Defense (' + (i + 1) + '/' + allMembers.length + ') ' + m.name + '...';
+      showMessage('Defense (' + (i + 1) + '/' + allMembers.length + ') ' + m.name + '…');
       try {
         const doc = await doFetch('members_defense', m.id);
         const r = parseDefensePage(doc, m);
         cachedData.defenseRaw[m.id] = r.rows;
         if (!cachedData.unitNames.length && r.unitNames.length) cachedData.unitNames = r.unitNames;
-      } catch (e) { showMessage('Defense — ' + m.name + ': ' + e.message); }
+      } catch (e) { showMessage('Defense error — ' + m.name + ': ' + e.message); }
     }
 
     // ── Buildings ──
     for (let i = 0; i < allMembers.length; i++) {
       const m = allMembers[i];
-      progressBox.textContent = 'Buildings (' + (i + 1) + '/' + allMembers.length + ') ' + m.name + '...';
+      showMessage('Buildings (' + (i + 1) + '/' + allMembers.length + ') ' + m.name + '…');
       try {
         const doc = await doFetch('members_buildings', m.id);
         const r = parseGenericUnitPage(doc, m);
         cachedData.buildings[m.id] = r.rows;
         if (!cachedData.buildingHeaders.length && r.headers.length) cachedData.buildingHeaders = r.headers;
-      } catch (e) { showMessage('Buildings — ' + m.name + ': ' + e.message); }
+      } catch (e) { showMessage('Buildings error — ' + m.name + ': ' + e.message); }
     }
 
-    progressBox.textContent = '✓ Done — ' + allMembers.length + ' member(s), ' + fetchCount + ' pages fetched';
-    makeCollapseHandler(extractContent, extractCollapseBtn)(); // auto-collapse progress
-    ensureExpanded(resultsContent, resultsCollapseBtn);
-    generateExport();
-    showMessage('Data loaded — ' + allMembers.length + ' member(s)');
-  }
-
-  /* ── Discovery Scan ── */
-
-  function scanCurrentPage() {
-    const area    = document.getElementById('content_value') || document.body;
-    const tables  = Array.from(area.querySelectorAll('table'));
-    let out = '── URL: ' + window.location.href + '\n\n';
-    out += '── Tables found: ' + tables.length + ' ──\n\n';
-
-    tables.forEach((table, idx) => {
-      const headerCells = Array.from(table.querySelectorAll('thead tr th, tr:first-child th'));
-      const headers = headerCells.map(th => {
-        const img = th.querySelector('img[data-title]');
-        return img ? img.getAttribute('data-title') : (th.textContent.trim() || '(empty)');
-      });
-      const bodyRows = table.querySelectorAll('tbody tr, tr:not(:first-child)');
-      const firstRow = bodyRows[0] ? Array.from(bodyRows[0].querySelectorAll('td')).map(c => c.textContent.trim().slice(0, 20)) : [];
-
-      out += '┌ Table ' + (idx + 1) + '  id="' + (table.id || 'none') + '"  class="' + (table.className || 'none').slice(0, 40) + '"\n';
-      out += '│ Header cols (' + headers.length + '): ' + headers.join(' | ') + '\n';
-      out += '│ Body rows: ' + bodyRows.length + '\n';
-      if (firstRow.length) out += '│ First row: ' + firstRow.join(' | ') + '\n';
-      out += '└─\n\n';
-    });
-
-    return out;
+    showMessage('✓ Done — ' + allMembers.length + ' member(s), ' + fetchCount + ' pages fetched');
+    refreshOverview();
   }
 
   /* ── Event Wiring ── */
 
   // Draggable
   (function makeDraggable() {
-    // Section content areas — drag does not activate when clicking inside these
-    const noDragZones = [navContent, membersContent, extractContent, resultsContent, discoverContent, msgBox];
+    const noDragZones = [membersContent, overviewContent, resultsContent, msgBar];
 
     let drag = false, sx = 0, sy = 0, il = 0, it = 0;
     function onDown(e) {
@@ -913,8 +842,8 @@
 
   closeBtn.addEventListener('click', () => container.remove());
 
-  // Message history
-  msgBox.addEventListener('click', () => {
+  // Message history popup
+  msgBar.addEventListener('click', () => {
     msgHistoryList.innerHTML = messageHistory.length === 0
       ? '<div style="color:#888;padding:8px;">No messages yet</div>'
       : messageHistory.slice().reverse().map(e => {
@@ -929,11 +858,9 @@
   msgHistoryCloseBtn.addEventListener('click', () => { msgHistoryOverlay.style.display = 'none'; });
   msgHistoryOverlay.addEventListener('click', e => { if (e.target === msgHistoryOverlay) msgHistoryOverlay.style.display = 'none'; });
 
-  navCollapseBtn.onclick      = makeCollapseHandler(navContent,      navCollapseBtn);
   membersCollapseBtn.onclick  = makeCollapseHandler(membersContent,  membersCollapseBtn);
-  extractCollapseBtn.onclick  = makeCollapseHandler(extractContent,  extractCollapseBtn);
+  overviewCollapseBtn.onclick = makeCollapseHandler(overviewContent, overviewCollapseBtn);
   resultsCollapseBtn.onclick  = makeCollapseHandler(resultsContent,  resultsCollapseBtn);
-  discoverCollapseBtn.onclick = makeCollapseHandler(discoverContent, discoverCollapseBtn);
 
   helpCloseBtn.addEventListener('click', () => { helpOverlay.style.display = 'none'; });
   helpOverlay.addEventListener('click',  e => { if (e.target === helpOverlay) helpOverlay.style.display = 'none'; });
@@ -945,8 +872,8 @@
       'On load the script reads your player ID from <code>game_data</code>, fetches all three ally data pages for every tribe member, and caches the results. No navigation required.<br><br>' +
       '<b>Workflow</b><br>' +
       '1. Run the script from any page while logged in.<br>' +
-      '2. Wait for the Progress section to show ✓ Done.<br>' +
-      '3. Untick any members you want to exclude.<br>' +
+      '2. Watch the message bar — it shows fetch progress and ✓ Done when complete.<br>' +
+      '3. Untick any members you want to exclude — the overview updates immediately.<br>' +
       '4. Select export mode and click Copy CSV or Copy JSON.<br><br>' +
       '<b>Member Troops</b><br>' +
       'All troops <i>owned by</i> the player, grouped by home village — includes units currently away. ' +
@@ -961,16 +888,8 @@
     );
   });
 
-  discoverHelpBtn.addEventListener('click', e => {
-    e.stopPropagation();
-    showHelp('Page Structure Scanner',
-      'Scans all tables on the current page and shows their headers, row count, and first row preview.<br><br>' +
-      'Use this on <i>Member Troops</i> and <i>Member Buildings</i> pages to understand their column layout before proper parsers are built.'
-    );
-  });
-
-  btnSelectAll.addEventListener('click',  () => Object.values(memberCheckboxes).forEach(({ cb }) => { cb.checked = true; }));
-  btnSelectNone.addEventListener('click', () => Object.values(memberCheckboxes).forEach(({ cb }) => { cb.checked = false; }));
+  btnSelectAll.addEventListener('click',  () => { Object.values(memberCheckboxes).forEach(({ cb }) => { cb.checked = true;  }); refreshOverview(); });
+  btnSelectNone.addEventListener('click', () => { Object.values(memberCheckboxes).forEach(({ cb }) => { cb.checked = false; }); refreshOverview(); });
 
   btnCopyCSV.addEventListener('click', () => {
     if (!cachedData.members.length) { showMessage('Data not loaded yet'); return; }
@@ -982,12 +901,6 @@
     if (!cachedData.members.length) { showMessage('Data not loaded yet'); return; }
     generateExport();
     copyText(lastJSON).then(() => showMessage('JSON copied!')).catch(() => showMessage('Copy failed'));
-  });
-
-  btnScan.addEventListener('click', () => {
-    discoverOutput.textContent = scanCurrentPage();
-    ensureExpanded(discoverContent, discoverCollapseBtn);
-    showMessage('Scan complete');
   });
 
   /* ── Init ── */
