@@ -200,12 +200,17 @@
   }
 
   function readUnitTableHeaders(table) {
-    const headers = [];
-    table.querySelectorAll('thead tr th, tr:first-child th').forEach(th => {
-      const img = th.querySelector('img[data-title]');
-      headers.push(img ? img.getAttribute('data-title') : th.textContent.trim());
+    // Use the last thead row — skips category/colspan rows, gets the granular per-column headers
+    const theadRows = Array.from(table.querySelectorAll('thead tr'));
+    const headerRow = theadRows.length
+      ? theadRows[theadRows.length - 1]
+      : table.querySelector('tr:first-child');
+    if (!headerRow) return [];
+    return Array.from(headerRow.querySelectorAll('th')).map(th => {
+      const img = th.querySelector('img');
+      return (img && (img.getAttribute('data-title') || img.getAttribute('alt') || img.getAttribute('title')))
+        || th.textContent.trim();
     });
-    return headers;
   }
 
   function parseGenericUnitPage(doc, player) {
