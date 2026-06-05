@@ -9,12 +9,21 @@
     members_defense:   'Member Defense',
   };
 
-  // Column order as rendered in the defense/troops table header
+  // Fallback column order — used only if header detection fails
   const UNIT_COLS = [
     'spear', 'sword', 'axe', 'archer', 'scout',
     'light', 'marcher', 'heavy', 'ram', 'catapult',
     'paladin', 'noble', 'militia',
   ];
+
+  // Maps TW unit display names to short CSV column names
+  const UNIT_NAME_MAP = {
+    'Spear fighter': 'spear', 'Swordsman': 'sword', 'Axeman': 'axe',
+    'Archer': 'archer', 'Scout': 'scout', 'Light cavalry': 'light',
+    'Mounted archer': 'marcher', 'Heavy cavalry': 'heavy',
+    'Ram': 'ram', 'Catapult': 'catapult',
+    'Paladin': 'paladin', 'Nobleman': 'noble', 'Militia': 'militia',
+  };
 
   const FETCH_DELAY_MS = 350;
 
@@ -97,10 +106,26 @@
   //   Village row (17 cells): village-link(td rs2) | points(td rs2) | "in village"(td) | units×13(td) | incoming(td rs2)
   //   Enroute row (14 cells): "enroute"(td) | units×13(td)    ← village/points/incoming are rowspanned above
 
+  // Reads unit column names from table header images — works for any unit set (no archers, etc.)
+  function detectUnitNamesFromTable(table) {
+    const names = [];
+    const seen  = new Set();
+    table.querySelectorAll('thead th, tr:first-child th').forEach(th => {
+      const img  = th.querySelector('img');
+      if (!img) return;
+      const disp = img.getAttribute('data-title') || img.getAttribute('alt') || img.getAttribute('title') || '';
+      if (!disp) return;
+      const slug = UNIT_NAME_MAP[disp] || disp.toLowerCase().replace(/\s+/g, '_');
+      if (!seen.has(slug)) { seen.add(slug); names.push(slug); }
+    });
+    return names.length ? names : UNIT_COLS.slice();
+  }
+
   function parseDefensePage(doc, player) {
     const table = findUnitTable(doc);
-    if (!table) return [];
+    if (!table) return { rows: [], unitNames: UNIT_COLS.slice() };
 
+    const unitNames = detectUnitNamesFromTable(table);
     const rows = [];
     let village = '', coords = '', points = 0, incoming = 0;
 
@@ -108,28 +133,35 @@
       const cells = Array.from(tr.querySelectorAll('td'));
       if (!cells.length) return;
 
-      if (cells.length > 14) {
-        // "in village" row — rowspan cells for village, points, incoming are present
+      // In-village row: [village(rs), points(rs), label, ...N units..., incoming(rs)]
+      // Enroute row:    [label, ...N units...]
+      // Distinguish by whether the first cell contains a village link (anchor or coords pattern)
+      const firstText = cells[0].textContent.trim();
+      const hasVillage = cells[0].querySelector('a') || /\(\d+\|\d+\)/.test(firstText);
+
+      if (hasVillage) {
         const anchor = cells[0].querySelector('a');
-        village  = anchor ? anchor.textContent.trim() : cells[0].textContent.trim();
+        village  = anchor ? anchor.textContent.trim() : firstText;
         coords   = extractCoords(village);
         points   = cellInt(cells[1]);
-        incoming = cellInt(cells[16]);
-        const inVillage = cells.slice(3, 16).map(cellInt); // 13 unit columns
+        const N  = cells.length - 4; // village, points, label, ...N..., incoming
+        incoming = cellInt(cells[cells.length - 1]);
+        const inVillage = cells.slice(3, 3 + N).map(cellInt);
         rows.push({ player_name: player.name, player_id: player.id, village, coords, points, incoming, type: 'in_village', units: inVillage });
-      } else if (cells[0].textContent.trim() === 'enroute') {
-        // "enroute" row — troops traveling to this village (own or allied support)
-        const enroute = cells.slice(1, 14).map(cellInt); // 13 unit columns
+      } else if (firstText === 'enroute') {
+        const enroute = cells.slice(1).map(cellInt);
         rows.push({ player_name: player.name, player_id: player.id, village, coords, points, incoming, type: 'enroute', units: enroute });
       }
     });
 
-    return rows;
+    return { rows, unitNames };
   }
 
-  function flattenDefenseRows(rows) {
+  function flattenDefenseRows(rawRows) {
     const map = new Map();
-    rows.forEach(r => {
+    const sample = rawRows.find(r => r.units);
+    const N = sample ? sample.units.length : UNIT_COLS.length;
+    rawRows.forEach(r => {
       const key = r.player_id + '||' + r.village;
       if (!map.has(key)) {
         map.set(key, {
@@ -139,8 +171,8 @@
           coords:      r.coords,
           points:      r.points,
           incoming:    r.incoming,
-          in_village:  new Array(UNIT_COLS.length).fill(0),
-          enroute:     new Array(UNIT_COLS.length).fill(0),
+          in_village:  new Array(N).fill(0),
+          enroute:     new Array(N).fill(0),
         });
       }
       const entry = map.get(key);
@@ -161,23 +193,27 @@
 
   function parseTroopsPage(doc, player) {
     const table = findUnitTable(doc);
-    if (!table) return [];
+    if (!table) return { rows: [], unitNames: UNIT_COLS.slice() };
 
+    const unitNames = detectUnitNamesFromTable(table);
     const rows = [];
     table.querySelectorAll('tbody tr').forEach(tr => {
       const cells = Array.from(tr.querySelectorAll('td'));
-      if (cells.length < 2) return;
+      if (cells.length < 4) return;
       const anchor = cells[0].querySelector('a');
+      if (!anchor && !/\(\d+\|\d+\)/.test(cells[0].textContent)) return;
       const village = anchor ? anchor.textContent.trim() : cells[0].textContent.trim();
       const coords  = extractCoords(village);
       const points  = cellInt(cells[1]);
-      const units   = cells.slice(2, 15).map(cellInt);  // 13 units: spear → militia
-      const active  = cellInt(cells[15]);
-      const incoming = cellInt(cells[16]);
+      // Row: village | points | ...N units... | active_commands | incoming
+      const N      = cells.length - 4;
+      const units  = cells.slice(2, 2 + N).map(cellInt);
+      const active = cellInt(cells[2 + N]);
+      const incoming = cellInt(cells[3 + N]);
       rows.push({ player_name: player.name, player_id: player.id, village, coords, points, active_commands: active, incoming, units });
     });
 
-    return rows;
+    return { rows, unitNames };
   }
 
   /* ── Generic Unit Table Parser (for Buildings until structure confirmed) ── */
@@ -236,9 +272,9 @@
 
   /* ── Export ── */
 
-  function defenseToCSV(flat) {
-    const inVillageH = UNIT_COLS.map(u => u + '_in_village');
-    const enrouteH   = UNIT_COLS.map(u => u + '_enroute');
+  function defenseToCSV(flat, unitNames) {
+    const inVillageH = unitNames.map(u => u + '_in_village');
+    const enrouteH   = unitNames.map(u => u + '_enroute');
     const headers    = ['player_name', 'player_id', 'village', 'coords', 'points', 'incoming_attacks', ...inVillageH, ...enrouteH];
     const lines      = [headers.map(escapeCSV).join(',')];
     flat.forEach(r => {
@@ -248,16 +284,16 @@
     return lines.join('\n');
   }
 
-  function defenseToJSON(flat) {
+  function defenseToJSON(flat, unitNames) {
     return JSON.stringify(flat.map(r => {
       const obj = { player_name: r.player_name, player_id: r.player_id, village: r.village, coords: r.coords, points: r.points, incoming_attacks: r.incoming };
-      UNIT_COLS.forEach((u, i) => { obj[u + '_in_village'] = r.in_village[i] || 0; obj[u + '_enroute'] = r.enroute[i] || 0; });
+      unitNames.forEach((u, i) => { obj[u + '_in_village'] = r.in_village[i] || 0; obj[u + '_enroute'] = r.enroute[i] || 0; });
       return obj;
     }), null, 2);
   }
 
-  function troopsToCSV(rows) {
-    const headers = ['player_name', 'player_id', 'village', 'coords', 'points', 'active_commands', 'incoming', ...UNIT_COLS];
+  function troopsToCSV(rows, unitNames) {
+    const headers = ['player_name', 'player_id', 'village', 'coords', 'points', 'active_commands', 'incoming', ...unitNames];
     const lines   = [headers.map(escapeCSV).join(',')];
     rows.forEach(r => {
       const vals = [r.player_name, r.player_id, r.village, r.coords, r.points, r.active_commands, r.incoming, ...r.units];
@@ -266,10 +302,10 @@
     return lines.join('\n');
   }
 
-  function troopsToJSON(rows) {
+  function troopsToJSON(rows, unitNames) {
     return JSON.stringify(rows.map(r => {
       const obj = { player_name: r.player_name, player_id: r.player_id, village: r.village, coords: r.coords, points: r.points, active_commands: r.active_commands, incoming: r.incoming };
-      UNIT_COLS.forEach((u, i) => { obj[u] = r.units[i] || 0; });
+      unitNames.forEach((u, i) => { obj[u] = r.units[i] || 0; });
       return obj;
     }), null, 2);
   }
@@ -605,7 +641,8 @@
 
     const allRawRows = [];
     const errors     = [];
-    let genericHeaders = [];
+    let genericHeaders   = [];
+    let capturedUnitNames = [];
 
     const diagLines = [];
 
@@ -619,9 +656,13 @@
         const unitTable  = findUnitTable(doc);
         let rows;
         if (mode === 'members_defense') {
-          rows = parseDefensePage(doc, m);
+          const result = parseDefensePage(doc, m);
+          rows = result.rows;
+          if (result.unitNames.length && !capturedUnitNames.length) capturedUnitNames = result.unitNames;
         } else if (mode === 'members_troops') {
-          rows = parseTroopsPage(doc, m);
+          const result = parseTroopsPage(doc, m);
+          rows = result.rows;
+          if (result.unitNames.length && !capturedUnitNames.length) capturedUnitNames = result.unitNames;
         } else {
           const result = parseGenericUnitPage(doc, m);
           rows = result.rows;
@@ -645,10 +686,11 @@
     progressBox.textContent = diagLines.join('\n');
 
     // Build results
+    const unitNames = capturedUnitNames.length ? capturedUnitNames : UNIT_COLS.slice();
     if (mode === 'members_defense') {
       const flat = flattenDefenseRows(allRawRows);
-      lastCSV  = defenseToCSV(flat);
-      lastJSON = defenseToJSON(flat);
+      lastCSV  = defenseToCSV(flat, unitNames);
+      lastJSON = defenseToJSON(flat, unitNames);
       const totalVillages = flat.length;
       const totalMembers  = new Set(flat.map(r => r.player_id)).size;
       resultsSummary.textContent = totalMembers + ' member(s) — ' + totalVillages + ' village(s)';
@@ -657,8 +699,8 @@
       ).join('\n');
       resultsOutput.textContent = 'player        coords      pts    atk_in  spear(vil/enr)  sword(vil/enr)\n' + preview + (flat.length > 10 ? '\n... (' + (flat.length - 10) + ' more)' : '');
     } else if (mode === 'members_troops') {
-      lastCSV  = troopsToCSV(allRawRows);
-      lastJSON = troopsToJSON(allRawRows);
+      lastCSV  = troopsToCSV(allRawRows, unitNames);
+      lastJSON = troopsToJSON(allRawRows, unitNames);
       const totalVillages = allRawRows.length;
       const totalMembers  = new Set(allRawRows.map(r => r.player_id)).size;
       resultsSummary.textContent = totalMembers + ' member(s) — ' + totalVillages + ' village(s)';
