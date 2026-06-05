@@ -193,9 +193,18 @@
 
   function parseTroopsPage(doc, player) {
     const table = findUnitTable(doc);
-    if (!table) return { rows: [], unitNames: UNIT_COLS.slice(), unitImgSrcs: UNIT_COLS.map(() => '') };
+    if (!table) return { rows: [], unitNames: UNIT_COLS.slice(), unitImgSrcs: UNIT_COLS.map(() => ''), activeCmdSrc: '', incomingSrc: '' };
 
     const { names: unitNames, srcs: unitImgSrcs } = detectUnitNamesFromTable(table);
+
+    // Read Active commands and Incoming header img srcs from the last two header cells
+    const theadRows = Array.from(table.querySelectorAll('thead tr'));
+    const headerRow = theadRows.length ? theadRows[theadRows.length - 1] : table.querySelector('tr:first-child');
+    const allThs    = headerRow ? Array.from(headerRow.querySelectorAll('th')) : [];
+    const N         = unitNames.length;
+    const activeCmdSrc = allThs[2 + N]?.querySelector('img')?.src || '';
+    const incomingSrc  = allThs[3 + N]?.querySelector('img')?.src || '';
+
     const rows = [];
     table.querySelectorAll('tbody tr').forEach(tr => {
       const cells = Array.from(tr.querySelectorAll('td'));
@@ -206,14 +215,14 @@
       const coords  = extractCoords(village);
       const points  = cellInt(cells[1]);
       // Row: village | points | ...N units... | active_commands | incoming
-      const N      = cells.length - 4;
-      const units  = cells.slice(2, 2 + N).map(cellInt);
-      const active = cellInt(cells[2 + N]);
-      const incoming = cellInt(cells[3 + N]);
+      const Nc       = cells.length - 4;
+      const units    = cells.slice(2, 2 + Nc).map(cellInt);
+      const active   = cellInt(cells[2 + Nc]);
+      const incoming = cellInt(cells[3 + Nc]);
       rows.push({ player_name: player.name, player_id: player.id, village, coords, points, active_commands: active, incoming, units });
     });
 
-    return { rows, unitNames, unitImgSrcs };
+    return { rows, unitNames, unitImgSrcs, activeCmdSrc, incomingSrc };
   }
 
   /* ── Generic Unit Table Parser (for Buildings until structure confirmed) ── */
@@ -447,7 +456,7 @@
     id:    'tw_tribe_extractor_ui',
     style: 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:99999;' +
            'background:#1a1a1a;color:#fff;padding:0;border-radius:8px;' +
-           'font-family:Arial,Helvetica,sans-serif;font-size:13px;width:920px;max-height:88vh;' +
+           'font-family:Arial,Helvetica,sans-serif;font-size:13px;width:1104px;max-height:88vh;' +
            'box-shadow:0 8px 24px rgba(0,0,0,0.8);resize:both;overflow:hidden;border:2px solid #333;' +
            'display:flex;flex-direction:column;',
   });
@@ -599,7 +608,7 @@
 
   let lastCSV  = '';
   let lastJSON = '';
-  let cachedData = { unitNames: [], unitImgSrcs: [], buildingHeaders: [], buildingImgSrcs: [], members: [], troops: {}, defenseRaw: {}, buildings: {} };
+  let cachedData = { unitNames: [], unitImgSrcs: [], activeCmdSrc: '', incomingSrc: '', buildingHeaders: [], buildingImgSrcs: [], members: [], troops: {}, defenseRaw: {}, buildings: {} };
   const expandedPlayers = new Set();
 
   /* ── Member List Builder ── */
@@ -691,7 +700,7 @@
   function refreshOverview() {
     const selectedIds   = getSelectedMemberIds();
     const selectedModes = getSelectedModes();
-    const { members, unitNames, unitImgSrcs, buildingHeaders, buildingImgSrcs } = cachedData;
+    const { members, unitNames, unitImgSrcs, activeCmdSrc, incomingSrc, buildingHeaders, buildingImgSrcs } = cachedData;
 
     if (!members.length) {
       overviewTbody.innerHTML = '<tr><td colspan="6" style="color:#888;text-align:center;padding:16px;">No data loaded yet</td></tr>';
@@ -748,7 +757,7 @@
       if (isExpanded) {
         const detailTr = el('tr', { style: 'background:#0a0a0a;' });
         const detailTd = el('td', { colSpan: 6, style: 'padding:0;border-bottom:1px solid #1e1e1e;' });
-        detailTd.appendChild(buildVillageDetail(selectedModes, troopRows, defFlat, bldgRows, unitNames, unitImgSrcs, buildingHeaders, buildingImgSrcs));
+        detailTd.appendChild(buildVillageDetail(selectedModes, troopRows, defFlat, bldgRows, unitNames, unitImgSrcs, activeCmdSrc, incomingSrc, buildingHeaders, buildingImgSrcs));
         detailTr.appendChild(detailTd);
         overviewTbody.appendChild(detailTr);
       }
@@ -758,7 +767,7 @@
     overviewSummary.textContent = mv + ' member' + (mv !== 1 ? 's' : '') + ' • ' + totalVillages + ' village' + (totalVillages !== 1 ? 's' : '');
   }
 
-  function buildVillageDetail(selectedModes, troopRows, defFlat, bldgRows, unitNames, unitImgSrcs, buildingHeaders, buildingImgSrcs) {
+  function buildVillageDetail(selectedModes, troopRows, defFlat, bldgRows, unitNames, unitImgSrcs, activeCmdSrc, incomingSrc, buildingHeaders, buildingImgSrcs) {
     const outer = el('div', { style: 'display:flex;flex-direction:column;' });
 
     if (!selectedModes.length) {
@@ -807,7 +816,7 @@
         const activeIdx = unitNames.map((_, i) => i).filter(i => troopRows.some(r => (r.units[i] || 0) > 0));
         outer.appendChild(makeSection(MODES[mode], t => {
           const thead = el('thead'), tbody = el('tbody'), hr = el('tr');
-          hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'), mkth('Active'), mkth('Incoming'));
+          hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'), mkthImg('Active cmds', activeCmdSrc), mkthImg('Incoming', incomingSrc));
           activeIdx.forEach(j => hr.append(mkthImg(unitNames[j], unitImgSrcs[j])));
           thead.appendChild(hr);
           troopRows.forEach((r, i) => {
@@ -834,13 +843,15 @@
             const tdC = el('td', { rowSpan: 2, style: tdS });  tdC.textContent = r.coords;   tr1.appendChild(tdC);
             const tdP = el('td', { rowSpan: 2, style: tdS });  tdP.textContent = r.points;   tr1.appendChild(tdP);
             const tdI = el('td', { rowSpan: 2, style: tdS });  tdI.textContent = r.incoming; tr1.appendChild(tdI);
-            const lbl1 = el('td', { style: 'padding:3px 6px;color:#555;font-size:10px;border-bottom:1px solid #181818;text-align:left;vertical-align:middle;white-space:nowrap;' });
-            lbl1.textContent = 'in'; tr1.appendChild(lbl1);
+            const lbl1 = el('td', { style: 'padding:2px 6px;border-bottom:1px solid #181818;text-align:left;vertical-align:middle;white-space:nowrap;' });
+            const pill1 = el('span', { style: 'display:inline-block;padding:1px 5px;border-radius:3px;font-size:10px;background:#0e2318;color:#4a9;font-weight:bold;' });
+            pill1.textContent = 'in village'; lbl1.appendChild(pill1); tr1.appendChild(lbl1);
             activeIdx.forEach(j => tr1.append(mktd(r.in_village[j] || 0)));
             tbody.appendChild(tr1);
             const tr2 = el('tr', { style: bg });
-            const lbl2 = el('td', { style: 'padding:3px 6px;color:#555;font-size:10px;border-bottom:1px solid #222;text-align:left;vertical-align:middle;white-space:nowrap;' });
-            lbl2.textContent = 'en'; tr2.appendChild(lbl2);
+            const lbl2 = el('td', { style: 'padding:2px 6px;border-bottom:1px solid #222;text-align:left;vertical-align:middle;white-space:nowrap;' });
+            const pill2 = el('span', { style: 'display:inline-block;padding:1px 5px;border-radius:3px;font-size:10px;background:#2a1505;color:#c84;font-weight:bold;' });
+            pill2.textContent = 'en route'; lbl2.appendChild(pill2); tr2.appendChild(lbl2);
             activeIdx.forEach(j => {
               const td = mktd(r.enroute[j] || 0);
               td.style.borderBottom = '1px solid #222';
@@ -880,7 +891,7 @@
       return;
     }
 
-    cachedData = { unitNames: [], unitImgSrcs: [], buildingHeaders: [], buildingImgSrcs: [], members: [], troops: {}, defenseRaw: {}, buildings: {} };
+    cachedData = { unitNames: [], unitImgSrcs: [], activeCmdSrc: '', incomingSrc: '', buildingHeaders: [], buildingImgSrcs: [], members: [], troops: {}, defenseRaw: {}, buildings: {} };
     let fetchCount = 0;
 
     async function doFetch(mode, playerId) {
@@ -904,7 +915,7 @@
       const myMember = allMembers.find(m => m.id === myId) || { id: myId, name: 'Me' };
       const myTroops = parseTroopsPage(firstDoc, myMember);
       cachedData.troops[myId] = myTroops.rows;
-      if (myTroops.unitNames.length) { cachedData.unitNames = myTroops.unitNames; cachedData.unitImgSrcs = myTroops.unitImgSrcs; }
+      if (myTroops.unitNames.length) { cachedData.unitNames = myTroops.unitNames; cachedData.unitImgSrcs = myTroops.unitImgSrcs; cachedData.activeCmdSrc = myTroops.activeCmdSrc; cachedData.incomingSrc = myTroops.incomingSrc; }
 
       const others = allMembers.filter(m => m.id !== myId);
       for (let i = 0; i < others.length; i++) {
@@ -914,7 +925,7 @@
           const doc = await doFetch('members_troops', m.id);
           const r = parseTroopsPage(doc, m);
           cachedData.troops[m.id] = r.rows;
-          if (!cachedData.unitNames.length && r.unitNames.length) { cachedData.unitNames = r.unitNames; cachedData.unitImgSrcs = r.unitImgSrcs; }
+          if (!cachedData.unitNames.length && r.unitNames.length) { cachedData.unitNames = r.unitNames; cachedData.unitImgSrcs = r.unitImgSrcs; cachedData.activeCmdSrc = r.activeCmdSrc; cachedData.incomingSrc = r.incomingSrc; }
         } catch (e) { showMessage('Troops error — ' + m.name + ': ' + e.message); }
       }
     } catch (e) {
