@@ -466,7 +466,7 @@
   const titleWrapper = el('div', { style: 'text-align:center;position:relative;' });
   const titleEl      = el('div', { style: 'font-size:20px;font-weight:bold;color:#e0e0e0;text-shadow:2px 2px 4px rgba(0,0,0,0.6);letter-spacing:1px;' });
   titleEl.textContent = 'TRIBE INFO EXTRACTOR';
-  const btnGlobalHelp = el('button', { innerText: '?', title: 'Help', type: 'button', style: 'position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 9px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:4px;font-size:14px;font-weight:bold;' });
+  const btnGlobalHelp = el('button', { innerText: '?', title: 'Help', type: 'button', style: 'position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 9px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:4px;font-size:14px;font-weight:bold;z-index:2;' });
   const closeBtn      = el('button', { innerText: '✕', title: 'Close', style: 'position:absolute;right:0;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 10px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;font-size:16px;font-weight:bold;' });
   titleWrapper.append(titleEl, closeBtn);
   titleBar.append(btnGlobalHelp, titleWrapper);
@@ -631,7 +631,7 @@
       const label = el('label', { style: 'display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 10px;background:#1a1a1a;border:1px solid #333;border-radius:4px;font-size:12px;color:#ddd;' });
       const cb    = el('input', { type: 'checkbox', checked: true, style: 'cursor:pointer;' });
       memberCheckboxes[m.id] = { cb, member: m };
-      cb.addEventListener('change', refreshOverview);
+      cb.addEventListener('change', () => { expandedPlayers.clear(); refreshOverview(); });
       const nameSpan = el('span');
       nameSpan.textContent = m.name;
       const idSpan = el('span', { style: 'color:#555;font-size:10px;' });
@@ -727,11 +727,12 @@
       totalVillages    += villCount;
 
       const isExpanded = expandedPlayers.has(m.id);
-      const rowBg      = idx % 2 === 0 ? '#131313' : '#0f0f0f';
+      const rowBg      = '#1e1e1e';
+      const rowBorder  = 'border-top:1px solid #3a3a3a;border-bottom:1px solid #3a3a3a;';
 
       // ── Summary row (clickable) ──
       const summaryTr = el('tr', { style: 'cursor:pointer;background:' + rowBg + ';' });
-      summaryTr.addEventListener('mouseenter', () => { summaryTr.style.background = '#1c1c1c'; });
+      summaryTr.addEventListener('mouseenter', () => { summaryTr.style.background = '#282828'; });
       summaryTr.addEventListener('mouseleave', () => { summaryTr.style.background = rowBg; });
       summaryTr.addEventListener('click', () => {
         if (expandedPlayers.has(m.id)) expandedPlayers.delete(m.id);
@@ -740,14 +741,14 @@
       });
 
       [
-        { v: (isExpanded ? '▾  ' : '▸  ') + m.name,                  align: 'left',  color: '#ddd' },
-        { v: villCount,                                                  align: 'right', color: '#999' },
-        { v: troopRows.length ? fmt(troopTotal)             : '—',      align: 'right', color: '#999' },
-        { v: troopRows.length ? fmt(totalActive)            : '—',      align: 'right', color: '#999' },
-        { v: troopRows.length ? fmt(totalIn)                : '—',      align: 'right', color: '#999' },
-        { v: defFlat.length   ? fmt(defIn) + ' / ' + fmt(defEn) : '—', align: 'right', color: '#999' },
+        { v: (isExpanded ? '▾  ' : '▸  ') + m.name,                  align: 'left',  color: '#e8e8e8' },
+        { v: villCount,                                                  align: 'right', color: '#bbb' },
+        { v: troopRows.length ? fmt(troopTotal)             : '—',      align: 'right', color: '#bbb' },
+        { v: troopRows.length ? fmt(totalActive)            : '—',      align: 'right', color: '#bbb' },
+        { v: troopRows.length ? fmt(totalIn)                : '—',      align: 'right', color: '#bbb' },
+        { v: defFlat.length   ? fmt(defIn) + ' / ' + fmt(defEn) : '—', align: 'right', color: '#bbb' },
       ].forEach(({ v, align, color }) => {
-        const td = el('td', { style: 'padding:7px 10px;text-align:' + align + ';color:' + color + ';border-bottom:1px solid #1e1e1e;' });
+        const td = el('td', { style: 'padding:8px 10px;text-align:' + align + ';color:' + color + ';' + rowBorder });
         td.textContent = v;
         summaryTr.appendChild(td);
       });
@@ -1044,8 +1045,8 @@
     );
   });
 
-  btnSelectAll.addEventListener('click',  () => { Object.values(memberCheckboxes).forEach(({ cb }) => { cb.checked = true;  }); refreshOverview(); });
-  btnSelectNone.addEventListener('click', () => { Object.values(memberCheckboxes).forEach(({ cb }) => { cb.checked = false; }); refreshOverview(); });
+  btnSelectAll.addEventListener('click',  () => { Object.values(memberCheckboxes).forEach(({ cb }) => { cb.checked = true;  }); expandedPlayers.clear(); refreshOverview(); });
+  btnSelectNone.addEventListener('click', () => { Object.values(memberCheckboxes).forEach(({ cb }) => { cb.checked = false; }); expandedPlayers.clear(); refreshOverview(); });
   btnModeAll.addEventListener('click',   () => { Object.values(modeCheckboxes).forEach(cb => { cb.checked = true;  }); refreshOverview(); });
   btnModeNone.addEventListener('click',  () => { Object.values(modeCheckboxes).forEach(cb => { cb.checked = false; }); refreshOverview(); });
 
