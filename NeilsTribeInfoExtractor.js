@@ -486,31 +486,31 @@
   const membersContent    = el('div');
   const membersTopRow     = el('div', { style: 'display:flex;gap:8px;align-items:center;margin-bottom:8px;' });
   const membersCountLabel = el('span', { style: 'font-size:12px;color:#888;flex:1;' });
-  const btnSelectAll      = el('button', { innerText: 'All',  type: 'button', style: 'cursor:pointer;padding:4px 10px;background:#2a3a2a;color:#aaa;border:1px solid #3a5a3a;border-radius:3px;font-size:11px;' });
+  const btnSelectAll      = el('button', { innerText: 'All',  type: 'button', style: 'cursor:pointer;padding:4px 10px;background:#2a2a2a;color:#aaa;border:1px solid #4a4a4a;border-radius:3px;font-size:11px;' });
   const btnSelectNone     = el('button', { innerText: 'None', type: 'button', style: 'cursor:pointer;padding:4px 10px;background:#2a2a2a;color:#aaa;border:1px solid #4a4a4a;border-radius:3px;font-size:11px;' });
   membersTopRow.append(membersCountLabel, btnSelectAll, btnSelectNone);
   const membersList       = el('div', { style: 'display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;' });
   const memberCheckboxes  = {};
 
-  const modeRadios = {};
-  const modeFilterRow = el('div', { style: 'border-top:1px solid #2a2a2a;padding-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;' });
-  Object.keys(MODES).forEach((mode, idx) => {
+  const modeCheckboxes = {};
+  const modeFilterSep  = el('div', { style: 'border-top:1px solid #2a2a2a;padding-top:10px;' });
+  const modeTopRow     = el('div', { style: 'display:flex;gap:8px;align-items:center;margin-bottom:8px;' });
+  const modeLabel      = el('span', { style: 'font-size:12px;color:#888;flex:1;' });
+  modeLabel.textContent = 'Data:';
+  const btnModeAll  = el('button', { innerText: 'All',  type: 'button', style: 'cursor:pointer;padding:4px 10px;background:#2a2a2a;color:#aaa;border:1px solid #4a4a4a;border-radius:3px;font-size:11px;' });
+  const btnModeNone = el('button', { innerText: 'None', type: 'button', style: 'cursor:pointer;padding:4px 10px;background:#2a2a2a;color:#aaa;border:1px solid #4a4a4a;border-radius:3px;font-size:11px;' });
+  modeTopRow.append(modeLabel, btnModeAll, btnModeNone);
+  const modeCheckRow = el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;' });
+  Object.keys(MODES).forEach(mode => {
     const label = el('label', { style: 'display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 11px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:4px;font-size:12px;color:#bbb;' });
-    const radio  = el('input', { type: 'radio', name: 'export_mode', value: mode, style: 'cursor:pointer;' });
-    if (idx === 0) radio.checked = true;
-    modeRadios[mode] = radio;
-    label.append(radio, document.createTextNode(MODES[mode]));
-    modeFilterRow.appendChild(label);
+    const cb    = el('input', { type: 'checkbox', checked: true, style: 'cursor:pointer;' });
+    modeCheckboxes[mode] = cb;
+    label.append(cb, document.createTextNode(MODES[mode]));
+    modeCheckRow.appendChild(label);
   });
-  {
-    const label = el('label', { style: 'display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 11px;background:#1a1a1a;border:1px solid #4a3a1a;border-radius:4px;font-size:12px;color:#cc9;' });
-    const radio  = el('input', { type: 'radio', name: 'export_mode', value: 'all_modes', style: 'cursor:pointer;' });
-    modeRadios['all_modes'] = radio;
-    label.append(radio, document.createTextNode('All Modes'));
-    modeFilterRow.appendChild(label);
-  }
+  modeFilterSep.append(modeTopRow, modeCheckRow);
 
-  membersContent.append(membersTopRow, membersList, modeFilterRow);
+  membersContent.append(membersTopRow, membersList, modeFilterSep);
   membersSection.appendChild(membersContent);
   body.appendChild(membersSection);
 
@@ -528,7 +528,7 @@
   const overviewTable   = el('table', { style: 'width:100%;border-collapse:collapse;font-size:12px;' });
   const overviewThead   = el('thead');
   const overviewThr     = el('tr');
-  ['Member', 'Villages', 'Troops', 'Defense', 'Buildings'].forEach((h, i) => {
+  ['Member', 'Villages', 'Troops', 'Active', 'Incoming', 'Defense', 'Buildings'].forEach((h, i) => {
     const th = el('th', { style: 'padding:6px 10px;text-align:' + (i === 0 ? 'left' : 'right') + ';color:#666;border-bottom:1px solid #2a2a2a;font-weight:normal;font-size:11px;white-space:nowrap;letter-spacing:0.3px;' });
     th.textContent = h;
     overviewThr.appendChild(th);
@@ -636,11 +636,8 @@
 
   /* ── Fetch & Export Logic ── */
 
-  function getSelectedMode() {
-    for (const mode in modeRadios) {
-      if (modeRadios[mode].checked) return mode;
-    }
-    return 'all_modes';
+  function getSelectedModes() {
+    return Object.keys(modeCheckboxes).filter(mode => modeCheckboxes[mode].checked);
   }
 
   function getSelectedMemberIds() {
@@ -652,34 +649,35 @@
   }
 
   function generateExport() {
-    const mode        = getSelectedMode();
-    const selectedIds = getSelectedMemberIds();
+    const selectedModes = getSelectedModes();
+    const selectedIds   = getSelectedMemberIds();
     const { unitNames, buildingHeaders, members } = cachedData;
     const pick = store => members.filter(m => selectedIds.has(m.id)).flatMap(m => store[m.id] || []);
 
-    if (mode === 'members_troops') {
-      const rows = pick(cachedData.troops);
-      lastCSV  = troopsToCSV(rows, unitNames);
-      lastJSON = troopsToJSON(rows, unitNames);
-
-    } else if (mode === 'members_defense') {
-      const flat = flattenDefenseRows(pick(cachedData.defenseRaw));
-      lastCSV  = defenseToCSV(flat, unitNames);
-      lastJSON = defenseToJSON(flat, unitNames);
-
-    } else if (mode === 'members_buildings') {
-      const rows = pick(cachedData.buildings);
-      lastCSV  = genericToCSV(buildingHeaders, rows);
-      lastJSON = JSON.stringify(withTimestamp(rows.map(r => {
-        const obj = { player_name: r.player_name, player_id: r.player_id, village: r.village, coords: r.coords, points: r.points };
-        buildingHeaders.forEach((h, i) => { obj[h] = r.data[i] || ''; });
-        return obj;
-      })), null, 2);
-
-    } else { // all_modes
-      const troopRows = pick(cachedData.troops);
-      const flat      = flattenDefenseRows(pick(cachedData.defenseRaw));
-      const buildRows = pick(cachedData.buildings);
+    if (selectedModes.length === 1) {
+      const mode = selectedModes[0];
+      if (mode === 'members_troops') {
+        const rows = pick(cachedData.troops);
+        lastCSV  = troopsToCSV(rows, unitNames);
+        lastJSON = troopsToJSON(rows, unitNames);
+      } else if (mode === 'members_defense') {
+        const flat = flattenDefenseRows(pick(cachedData.defenseRaw));
+        lastCSV  = defenseToCSV(flat, unitNames);
+        lastJSON = defenseToJSON(flat, unitNames);
+      } else if (mode === 'members_buildings') {
+        const rows = pick(cachedData.buildings);
+        lastCSV  = genericToCSV(buildingHeaders, rows);
+        lastJSON = JSON.stringify(withTimestamp(rows.map(r => {
+          const obj = { player_name: r.player_name, player_id: r.player_id, village: r.village, coords: r.coords, points: r.points };
+          buildingHeaders.forEach((h, i) => { obj[h] = r.data[i] || ''; });
+          return obj;
+        })), null, 2);
+      }
+    } else {
+      // 0 or 2+ modes → combined format (missing data filled with zeros)
+      const troopRows = selectedModes.includes('members_troops')    ? pick(cachedData.troops)                        : [];
+      const flat      = selectedModes.includes('members_defense')   ? flattenDefenseRows(pick(cachedData.defenseRaw)) : [];
+      const buildRows = selectedModes.includes('members_buildings') ? pick(cachedData.buildings)                      : [];
       const combined  = combineAllModes(troopRows, flat, buildRows, unitNames, buildingHeaders);
       lastCSV  = combinedToCSV(combined, unitNames, buildingHeaders);
       lastJSON = combinedToJSON(combined, unitNames, buildingHeaders);
@@ -687,12 +685,12 @@
   }
 
   function refreshOverview() {
-    const selectedIds = getSelectedMemberIds();
+    const selectedIds   = getSelectedMemberIds();
+    const selectedModes = getSelectedModes();
     const { members, unitNames, buildingHeaders } = cachedData;
-    const mode = getSelectedMode();
 
     if (!members.length) {
-      overviewTbody.innerHTML = '<tr><td colspan="5" style="color:#888;text-align:center;padding:16px;">No data loaded yet</td></tr>';
+      overviewTbody.innerHTML = '<tr><td colspan="7" style="color:#888;text-align:center;padding:16px;">No data loaded yet</td></tr>';
       overviewSummary.textContent = '';
       return;
     }
@@ -707,11 +705,13 @@
       const defFlat   = flattenDefenseRows(cachedData.defenseRaw[m.id] || []);
       const bldgRows  = cachedData.buildings[m.id] || [];
 
-      const troopTotal = troopRows.reduce((s, r) => s + r.units.reduce((a, b) => a + b, 0), 0);
-      const defIn      = defFlat.reduce((s, r) => s + r.in_village.reduce((a, b) => a + b, 0), 0);
-      const defEn      = defFlat.reduce((s, r) => s + r.enroute.reduce((a, b) => a + b, 0), 0);
-      const villCount  = troopRows.length || defFlat.length || bldgRows.length;
-      totalVillages   += villCount;
+      const troopTotal  = troopRows.reduce((s, r) => s + r.units.reduce((a, b) => a + b, 0), 0);
+      const totalActive = troopRows.reduce((s, r) => s + r.active_commands, 0);
+      const totalIn     = troopRows.reduce((s, r) => s + r.incoming, 0);
+      const defIn       = defFlat.reduce((s, r) => s + r.in_village.reduce((a, b) => a + b, 0), 0);
+      const defEn       = defFlat.reduce((s, r) => s + r.enroute.reduce((a, b) => a + b, 0), 0);
+      const villCount   = troopRows.length || defFlat.length || bldgRows.length;
+      totalVillages    += villCount;
 
       const isExpanded = expandedPlayers.has(m.id);
       const rowBg      = idx % 2 === 0 ? '#131313' : '#0f0f0f';
@@ -727,11 +727,13 @@
       });
 
       [
-        { v: (isExpanded ? '▾  ' : '▸  ') + m.name, align: 'left',  color: '#ddd' },
-        { v: villCount,                                align: 'right', color: '#999' },
-        { v: fmt(troopTotal),                          align: 'right', color: '#999' },
-        { v: fmt(defIn) + ' / ' + fmt(defEn),          align: 'right', color: '#999' },
-        { v: bldgRows.length ? bldgRows.length + ' vills' : '—', align: 'right', color: '#999' },
+        { v: (isExpanded ? '▾  ' : '▸  ') + m.name,                  align: 'left',  color: '#ddd' },
+        { v: villCount,                                                  align: 'right', color: '#999' },
+        { v: troopRows.length ? fmt(troopTotal)             : '—',      align: 'right', color: '#999' },
+        { v: troopRows.length ? fmt(totalActive)            : '—',      align: 'right', color: '#999' },
+        { v: troopRows.length ? fmt(totalIn)                : '—',      align: 'right', color: '#999' },
+        { v: defFlat.length   ? fmt(defIn) + ' / ' + fmt(defEn) : '—', align: 'right', color: '#999' },
+        { v: bldgRows.length  ? bldgRows.length + ' vills'      : '—', align: 'right', color: '#999' },
       ].forEach(({ v, align, color }) => {
         const td = el('td', { style: 'padding:7px 10px;text-align:' + align + ';color:' + color + ';border-bottom:1px solid #1e1e1e;' });
         td.textContent = v;
@@ -739,11 +741,11 @@
       });
       overviewTbody.appendChild(summaryTr);
 
-      // ── Village detail rows (expanded) ──
+      // ── Village detail (expanded) ──
       if (isExpanded) {
         const detailTr = el('tr', { style: 'background:#0a0a0a;' });
-        const detailTd = el('td', { colSpan: 5, style: 'padding:6px 8px 10px 24px;border-bottom:1px solid #1e1e1e;' });
-        detailTd.appendChild(buildVillageDetail(mode, troopRows, defFlat, bldgRows, unitNames, buildingHeaders));
+        const detailTd = el('td', { colSpan: 7, style: 'padding:0;border-bottom:1px solid #1e1e1e;' });
+        detailTd.appendChild(buildVillageDetail(selectedModes, troopRows, defFlat, bldgRows, unitNames, buildingHeaders));
         detailTr.appendChild(detailTd);
         overviewTbody.appendChild(detailTr);
       }
@@ -753,87 +755,98 @@
     overviewSummary.textContent = mv + ' member' + (mv !== 1 ? 's' : '') + ' • ' + totalVillages + ' village' + (totalVillages !== 1 ? 's' : '');
   }
 
-  function buildVillageDetail(mode, troopRows, defFlat, bldgRows, unitNames, buildingHeaders) {
-    const wrap  = el('div', { style: 'overflow-x:auto;' });
-    const t     = el('table', { style: 'border-collapse:collapse;font-size:11px;white-space:nowrap;' });
-    const thead = el('thead');
-    const tbody = el('tbody');
+  function buildVillageDetail(selectedModes, troopRows, defFlat, bldgRows, unitNames, buildingHeaders) {
+    const outer = el('div', { style: 'display:flex;flex-direction:column;' });
 
-    const thS  = 'padding:4px 8px;color:#555;border-bottom:1px solid #222;font-weight:normal;text-align:right;';
-    const thSL = 'padding:4px 8px;color:#555;border-bottom:1px solid #222;font-weight:normal;text-align:left;';
+    if (!selectedModes.length) {
+      const msg = el('div', { style: 'color:#555;font-size:11px;padding:8px 16px;' });
+      msg.textContent = 'No data mode selected';
+      outer.appendChild(msg);
+      return outer;
+    }
+
+    const thS  = 'padding:4px 8px;color:#555;border-bottom:1px solid #222;font-weight:normal;text-align:right;white-space:nowrap;';
+    const thSL = 'padding:4px 8px;color:#555;border-bottom:1px solid #222;font-weight:normal;text-align:left;white-space:nowrap;';
     const tdS  = 'padding:3px 8px;color:#aaa;border-bottom:1px solid #181818;text-align:right;';
     const tdSL = 'padding:3px 8px;color:#aaa;border-bottom:1px solid #181818;text-align:left;';
 
     function mkth(text, left) { const e = el('th', { style: left ? thSL : thS }); e.textContent = text; return e; }
     function mktd(text, left) { const e = el('td', { style: left ? tdSL : tdS }); e.textContent = text; return e; }
-    function rowBg(i) { return i % 2 === 0 ? '' : 'background:#0d0d0d;'; }
+    function rBg(i) { return i % 2 === 0 ? '' : 'background:#0d0d0d;'; }
 
-    const hr = el('tr');
-
-    if (mode === 'members_troops') {
-      hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'), mkth('Active'), mkth('Incoming'));
-      unitNames.forEach(u => hr.append(mkth(u)));
-      thead.appendChild(hr);
-      troopRows.forEach((r, i) => {
-        const tr = el('tr', { style: rowBg(i) });
-        tr.append(mktd(r.village, true), mktd(r.coords), mktd(r.points), mktd(r.active_commands), mktd(r.incoming));
-        r.units.forEach(v => tr.append(mktd(v)));
-        tbody.appendChild(tr);
-      });
-      if (!troopRows.length) tbody.innerHTML = '<tr><td colspan="' + (5 + unitNames.length) + '" style="color:#555;padding:6px 8px;">No troop data</td></tr>';
-
-    } else if (mode === 'members_defense') {
-      hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'), mkth('Incoming'));
-      unitNames.forEach(u => hr.append(mkth(u + ' in')));
-      unitNames.forEach(u => hr.append(mkth(u + ' en')));
-      thead.appendChild(hr);
-      defFlat.forEach((r, i) => {
-        const tr = el('tr', { style: rowBg(i) });
-        tr.append(mktd(r.village, true), mktd(r.coords), mktd(r.points), mktd(r.incoming));
-        r.in_village.forEach(v => tr.append(mktd(v)));
-        r.enroute.forEach(v => tr.append(mktd(v)));
-        tbody.appendChild(tr);
-      });
-      if (!defFlat.length) tbody.innerHTML = '<tr><td colspan="' + (4 + unitNames.length * 2) + '" style="color:#555;padding:6px 8px;">No defense data</td></tr>';
-
-    } else if (mode === 'members_buildings') {
-      hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'));
-      buildingHeaders.forEach(h => hr.append(mkth(h)));
-      thead.appendChild(hr);
-      bldgRows.forEach((r, i) => {
-        const tr = el('tr', { style: rowBg(i) });
-        tr.append(mktd(r.village, true), mktd(r.coords), mktd(r.points));
-        r.data.forEach(v => tr.append(mktd(v)));
-        tbody.appendChild(tr);
-      });
-      if (!bldgRows.length) tbody.innerHTML = '<tr><td colspan="' + (3 + buildingHeaders.length) + '" style="color:#555;padding:6px 8px;">No building data</td></tr>';
-
-    } else { // all_modes
-      hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'), mkth('Troops'), mkth('Def in'), mkth('Def en'), mkth('Bldg'));
-      thead.appendChild(hr);
-      const villMap = new Map();
-      troopRows.forEach(r => villMap.set(r.village, { v: r.village, c: r.coords, p: r.points, troops: r.units.reduce((a, b) => a + b, 0), defIn: 0, defEn: 0, bldg: false }));
-      defFlat.forEach(r => {
-        if (!villMap.has(r.village)) villMap.set(r.village, { v: r.village, c: r.coords, p: r.points, troops: 0, defIn: 0, defEn: 0, bldg: false });
-        const e = villMap.get(r.village);
-        e.defIn = r.in_village.reduce((a, b) => a + b, 0);
-        e.defEn = r.enroute.reduce((a, b) => a + b, 0);
-      });
-      bldgRows.forEach(r => {
-        if (!villMap.has(r.village)) villMap.set(r.village, { v: r.village, c: r.coords, p: r.points, troops: 0, defIn: 0, defEn: 0, bldg: false });
-        villMap.get(r.village).bldg = true;
-      });
-      Array.from(villMap.values()).forEach((r, i) => {
-        const tr = el('tr', { style: rowBg(i) });
-        tr.append(mktd(r.v, true), mktd(r.c), mktd(r.p), mktd(r.troops), mktd(r.defIn), mktd(r.defEn), mktd(r.bldg ? '✓' : '—'));
-        tbody.appendChild(tr);
-      });
-      if (!villMap.size) tbody.innerHTML = '<tr><td colspan="7" style="color:#555;padding:6px 8px;">No data</td></tr>';
+    function makeSection(label, tableBuilder) {
+      const section = el('div', { style: 'overflow-x:auto;' });
+      if (selectedModes.length > 1) {
+        const hd = el('div', { style: 'font-size:10px;color:#555;padding:4px 10px 2px;letter-spacing:0.5px;text-transform:uppercase;' });
+        hd.textContent = label;
+        section.appendChild(hd);
+      }
+      const t = el('table', { style: 'border-collapse:collapse;font-size:11px;white-space:nowrap;min-width:100%;' });
+      tableBuilder(t);
+      section.appendChild(t);
+      return section;
     }
 
-    t.append(thead, tbody);
-    wrap.appendChild(t);
-    return wrap;
+    selectedModes.forEach(mode => {
+      if (mode === 'members_troops') {
+        // Only show unit columns where at least one village has > 0
+        const activeIdx   = unitNames.map((_, i) => i).filter(i => troopRows.some(r => (r.units[i] || 0) > 0));
+        const activeNames = activeIdx.map(i => unitNames[i]);
+        outer.appendChild(makeSection(MODES[mode], t => {
+          const thead = el('thead'), tbody = el('tbody'), hr = el('tr');
+          hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'), mkth('Active'), mkth('Incoming'));
+          activeNames.forEach(u => hr.append(mkth(u)));
+          thead.appendChild(hr);
+          troopRows.forEach((r, i) => {
+            const tr = el('tr', { style: rBg(i) });
+            tr.append(mktd(r.village, true), mktd(r.coords), mktd(r.points), mktd(r.active_commands), mktd(r.incoming));
+            activeIdx.forEach(j => tr.append(mktd(r.units[j] || 0)));
+            tbody.appendChild(tr);
+          });
+          if (!troopRows.length) tbody.innerHTML = '<tr><td colspan="' + (5 + activeNames.length) + '" style="color:#555;padding:6px 8px;">No troop data</td></tr>';
+          t.append(thead, tbody);
+        }));
+
+      } else if (mode === 'members_defense') {
+        // Only show unit columns where at least one village has > 0 in either in_village or enroute
+        const activeIdx   = unitNames.map((_, i) => i).filter(i => defFlat.some(r => (r.in_village[i] || 0) > 0 || (r.enroute[i] || 0) > 0));
+        const activeNames = activeIdx.map(i => unitNames[i]);
+        outer.appendChild(makeSection(MODES[mode], t => {
+          const thead = el('thead'), tbody = el('tbody'), hr = el('tr');
+          hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'), mkth('Incoming'));
+          activeNames.forEach(u => hr.append(mkth(u + ' in')));
+          activeNames.forEach(u => hr.append(mkth(u + ' en')));
+          thead.appendChild(hr);
+          defFlat.forEach((r, i) => {
+            const tr = el('tr', { style: rBg(i) });
+            tr.append(mktd(r.village, true), mktd(r.coords), mktd(r.points), mktd(r.incoming));
+            activeIdx.forEach(j => tr.append(mktd(r.in_village[j] || 0)));
+            activeIdx.forEach(j => tr.append(mktd(r.enroute[j] || 0)));
+            tbody.appendChild(tr);
+          });
+          if (!defFlat.length) tbody.innerHTML = '<tr><td colspan="' + (4 + activeNames.length * 2) + '" style="color:#555;padding:6px 8px;">No defense data</td></tr>';
+          t.append(thead, tbody);
+        }));
+
+      } else if (mode === 'members_buildings') {
+        outer.appendChild(makeSection(MODES[mode], t => {
+          const thead = el('thead'), tbody = el('tbody'), hr = el('tr');
+          hr.append(mkth('Village', true), mkth('Coords'), mkth('Points'));
+          buildingHeaders.forEach(h => hr.append(mkth(h)));
+          thead.appendChild(hr);
+          bldgRows.forEach((r, i) => {
+            const tr = el('tr', { style: rBg(i) });
+            tr.append(mktd(r.village, true), mktd(r.coords), mktd(r.points));
+            r.data.forEach(v => tr.append(mktd(v)));
+            tbody.appendChild(tr);
+          });
+          if (!bldgRows.length) tbody.innerHTML = '<tr><td colspan="' + (3 + buildingHeaders.length) + '" style="color:#555;padding:6px 8px;">No building data</td></tr>';
+          t.append(thead, tbody);
+        }));
+      }
+    });
+
+    return outer;
   }
 
   async function initFetch() {
@@ -968,7 +981,7 @@
   membersCollapseBtn.onclick  = makeCollapseHandler(membersContent,  membersCollapseBtn);
   overviewCollapseBtn.onclick = makeCollapseHandler(overviewContent, overviewCollapseBtn);
   resultsCollapseBtn.onclick  = makeCollapseHandler(resultsContent,  resultsCollapseBtn);
-  Object.values(modeRadios).forEach(radio => radio.addEventListener('change', refreshOverview));
+  Object.values(modeCheckboxes).forEach(cb => cb.addEventListener('change', refreshOverview));
 
   helpCloseBtn.addEventListener('click', () => { helpOverlay.style.display = 'none'; });
   helpOverlay.addEventListener('click',  e => { if (e.target === helpOverlay) helpOverlay.style.display = 'none'; });
@@ -998,6 +1011,8 @@
 
   btnSelectAll.addEventListener('click',  () => { Object.values(memberCheckboxes).forEach(({ cb }) => { cb.checked = true;  }); refreshOverview(); });
   btnSelectNone.addEventListener('click', () => { Object.values(memberCheckboxes).forEach(({ cb }) => { cb.checked = false; }); refreshOverview(); });
+  btnModeAll.addEventListener('click',   () => { Object.values(modeCheckboxes).forEach(cb => { cb.checked = true;  }); refreshOverview(); });
+  btnModeNone.addEventListener('click',  () => { Object.values(modeCheckboxes).forEach(cb => { cb.checked = false; }); refreshOverview(); });
 
   btnCopyCSV.addEventListener('click', () => {
     if (!cachedData.members.length) { showMessage('Data not loaded yet'); return; }
