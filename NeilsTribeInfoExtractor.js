@@ -498,10 +498,13 @@
   // ── Members Section ──
   const membersSection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
   const membersSectionHeader = el('div', { style: 'display:flex;align-items:center;margin-bottom:10px;' });
-  const membersSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;font-size:13px;flex:1;text-align:center;cursor:pointer;' });
+  const _membersLeft         = el('div', { style: 'flex:1;' });
+  const membersSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;font-size:13px;text-align:center;cursor:pointer;' });
   membersSectionTitle.textContent = 'Filter';
   const membersCollapseBtn   = el('button', { innerText: '−', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
-  membersSectionHeader.append(membersSectionTitle, membersCollapseBtn);
+  const _membersRight        = el('div', { style: 'flex:1;display:flex;justify-content:flex-end;' });
+  _membersRight.append(membersCollapseBtn);
+  membersSectionHeader.append(_membersLeft, membersSectionTitle, _membersRight);
   membersSection.appendChild(membersSectionHeader);
 
   const membersContent    = el('div');
@@ -538,10 +541,13 @@
   // ── Overview Section ──
   const overviewSection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
   const overviewSectionHeader = el('div', { style: 'display:flex;align-items:center;margin-bottom:10px;' });
-  const overviewSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;font-size:13px;flex:1;text-align:center;cursor:pointer;' });
+  const _overviewLeft         = el('div', { style: 'flex:1;' });
+  const overviewSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;font-size:13px;text-align:center;cursor:pointer;' });
   overviewSectionTitle.textContent = 'Overview';
   const overviewCollapseBtn   = el('button', { innerText: '−', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
-  overviewSectionHeader.append(overviewSectionTitle, overviewCollapseBtn);
+  const _overviewRight        = el('div', { style: 'flex:1;display:flex;justify-content:flex-end;' });
+  _overviewRight.append(overviewCollapseBtn);
+  overviewSectionHeader.append(_overviewLeft, overviewSectionTitle, _overviewRight);
   overviewSection.appendChild(overviewSectionHeader);
 
   const overviewContent = el('div');
@@ -558,10 +564,13 @@
   // ── Export Section ──
   const resultsSection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
   const resultsSectionHeader = el('div', { style: 'display:flex;align-items:center;margin-bottom:10px;' });
-  const resultsSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;font-size:13px;flex:1;text-align:center;cursor:pointer;' });
+  const _resultsLeft         = el('div', { style: 'flex:1;' });
+  const resultsSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;font-size:13px;text-align:center;cursor:pointer;' });
   resultsSectionTitle.textContent = 'Export';
   const resultsCollapseBtn   = el('button', { innerText: '−', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
-  resultsSectionHeader.append(resultsSectionTitle, resultsCollapseBtn);
+  const _resultsRight        = el('div', { style: 'flex:1;display:flex;justify-content:flex-end;' });
+  _resultsRight.append(resultsCollapseBtn);
+  resultsSectionHeader.append(_resultsLeft, resultsSectionTitle, _resultsRight);
   resultsSection.appendChild(resultsSectionHeader);
 
   const resultsContent = el('div');

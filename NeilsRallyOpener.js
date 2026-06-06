@@ -528,12 +528,15 @@
 
   // Unit Templates Section
   const templatesSection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
-  const templatesSectionHeader = el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;' });
-  const templatesSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;flex:1;cursor:pointer;' });
+  const templatesSectionHeader = el('div', { style: 'display:flex;align-items:center;margin-bottom:8px;' });
+  const _templatesLeft         = el('div', { style: 'flex:1;' });
+  const templatesSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;cursor:pointer;' });
   templatesSectionTitle.textContent = 'Unit Templates';
   const templatesCollapseBtn = el('button', { innerText: '+', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
   const templatesHelpBtn     = el('button', { innerText: '?', type: 'button', title: 'Help', style: 'cursor:pointer;padding:2px 7px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:3px;font-size:13px;font-weight:bold;line-height:1;margin-left:4px;' });
-  templatesSectionHeader.append(templatesSectionTitle, templatesCollapseBtn, templatesHelpBtn);
+  const _templatesRight      = el('div', { style: 'flex:1;display:flex;justify-content:flex-end;' });
+  _templatesRight.append(templatesCollapseBtn, templatesHelpBtn);
+  templatesSectionHeader.append(_templatesLeft, templatesSectionTitle, _templatesRight);
   templatesSection.appendChild(templatesSectionHeader);
 
   const templatesContent = el('div', { style: 'display:none;' });
@@ -584,19 +587,20 @@
 
   // Rally Point Opener Section
   const rallySection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;position:relative;' });
-  const rallySectionHeader = el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;' });
-  const rallySectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;flex:1;cursor:pointer;' });
-  rallySectionTitle.textContent = 'Rally Point Opener';
-  const rallyCollapseBtn = el('button', { innerText: '+', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
-  const rallyHelpBtn     = el('button', { innerText: '?', type: 'button', title: 'Help', style: 'cursor:pointer;padding:2px 7px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:3px;font-size:13px;font-weight:bold;line-height:1;margin-left:4px;' });
-
-  const useGroupWrapper  = el('label', { style: 'position:absolute;top:8px;left:8px;display:flex;align-items:center;gap:6px;color:#bbb;font-size:11px;cursor:pointer;' });
-  const useGroupCheckbox = el('input', { type: 'checkbox', style: 'cursor:pointer;' });
+  const rallySectionHeader = el('div', { style: 'display:flex;align-items:center;margin-bottom:8px;' });
+  const _rallyLeft         = el('div', { style: 'flex:1;display:flex;align-items:center;gap:6px;' });
+  const useGroupWrapper    = el('label', { style: 'display:flex;align-items:center;gap:6px;color:#bbb;font-size:11px;cursor:pointer;' });
+  const useGroupCheckbox   = el('input', { type: 'checkbox', style: 'cursor:pointer;' });
   useGroupWrapper.append(useGroupCheckbox, el('span', { innerText: 'Use current group' }));
-
-  const btnTestData = el('button', { innerText: 'Test', title: 'Load Test Data', type: 'button', style: 'position:absolute;top:8px;right:40px;cursor:pointer;padding:4px 8px;background:#2a4a5a;color:#fff;border:1px solid #3a6a7a;border-radius:3px;font-size:11px;' });
-
-  rallySectionHeader.append(rallySectionTitle, rallyCollapseBtn, rallyHelpBtn, useGroupWrapper, btnTestData);
+  const btnTestData        = el('button', { innerText: 'Test', title: 'Load Test Data', type: 'button', style: 'cursor:pointer;padding:4px 8px;background:#2a4a5a;color:#fff;border:1px solid #3a6a7a;border-radius:3px;font-size:11px;' });
+  _rallyLeft.append(useGroupWrapper, btnTestData);
+  const rallySectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;cursor:pointer;' });
+  rallySectionTitle.textContent = 'Rally Point Opener';
+  const rallyCollapseBtn   = el('button', { innerText: '+', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
+  const rallyHelpBtn       = el('button', { innerText: '?', type: 'button', title: 'Help', style: 'cursor:pointer;padding:2px 7px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:3px;font-size:13px;font-weight:bold;line-height:1;margin-left:4px;' });
+  const _rallyRight        = el('div', { style: 'flex:1;display:flex;justify-content:flex-end;' });
+  _rallyRight.append(rallyCollapseBtn, rallyHelpBtn);
+  rallySectionHeader.append(_rallyLeft, rallySectionTitle, _rallyRight);
   rallySection.appendChild(rallySectionHeader);
 
   const rallyContent    = el('div', { style: 'display:none;' });
@@ -669,12 +673,15 @@
 
   // Attack Plan Section
   const attackPlanSection      = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
-  const attackPlanHeader       = el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;' });
-  const attackPlanTitle        = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;flex:1;cursor:pointer;' });
+  const attackPlanHeader       = el('div', { style: 'display:flex;align-items:center;margin-bottom:8px;' });
+  const _attackPlanLeft        = el('div', { style: 'flex:1;' });
+  const attackPlanTitle        = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;cursor:pointer;' });
   attackPlanTitle.textContent  = 'Attack Plans';
   const attackPlanCollapseBtn  = el('button', { innerText: '+', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
   const attackPlanHelpBtn      = el('button', { innerText: '?', type: 'button', title: 'Help', style: 'cursor:pointer;padding:2px 7px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:3px;font-size:13px;font-weight:bold;line-height:1;margin-left:4px;' });
-  attackPlanHeader.append(attackPlanTitle, attackPlanCollapseBtn, attackPlanHelpBtn);
+  const _attackPlanRight       = el('div', { style: 'flex:1;display:flex;justify-content:flex-end;' });
+  _attackPlanRight.append(attackPlanCollapseBtn, attackPlanHelpBtn);
+  attackPlanHeader.append(_attackPlanLeft, attackPlanTitle, _attackPlanRight);
   attackPlanSection.appendChild(attackPlanHeader);
 
   const attackPlanContent   = el('div', { style: 'display:none;' });
