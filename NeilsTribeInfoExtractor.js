@@ -1000,8 +1000,8 @@
       return;
     }
 
-    const allyId = window.game_data && game_data.player && game_data.player.ally_id;
-    if (!allyId) {
+    const allyId = window.game_data && game_data.player && game_data.player.ally;
+    if (!allyId || allyId === '0') {
       showMessage('✗ Not in a tribe — tribe membership is required to use this script');
       return;
     }
