@@ -1,4 +1,4 @@
-// NeilsTribeInfoExtractor
+// NeilsTribeInfo
 (function () {
 
   /* ── Constants ── */
