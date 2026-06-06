@@ -536,12 +536,12 @@
 
   const overviewContent = el('div');
   const overviewSummary = el('div', { style: 'font-size:12px;color:#888;text-align:center;margin-bottom:10px;' });
-  const overviewScroll  = el('div', { style: 'overflow-x:auto;' });
+  const overviewScroll  = el('div', { style: 'overflow:auto;max-height:55vh;' });
   const overviewTable   = el('table', { style: 'min-width:100%;border-collapse:collapse;font-size:12px;' });
-  const overviewThead   = el('thead');
+  const overviewThead   = el('thead', { style: 'position:sticky;top:0;z-index:5;' });
   const overviewThr     = el('tr');
   ['Member', 'Villages', 'Troops', 'Active cmds', 'Incoming', 'Defense'].forEach((h, i) => {
-    const th = el('th', { style: 'padding:6px 10px;text-align:' + (i === 0 ? 'left' : 'right') + ';color:#666;border-bottom:1px solid #2a2a2a;font-weight:normal;font-size:11px;white-space:nowrap;letter-spacing:0.3px;' });
+    const th = el('th', { style: 'padding:6px 10px;text-align:' + (i === 0 ? 'left' : 'right') + ';color:#888;background:#0f0f0f;border-bottom:2px solid #333;font-weight:normal;font-size:11px;white-space:nowrap;letter-spacing:0.3px;' });
     th.textContent = h;
     overviewThr.appendChild(th);
   });
@@ -727,12 +727,11 @@
       totalVillages    += villCount;
 
       const isExpanded = expandedPlayers.has(m.id);
-      const rowBg      = '#1e1e1e';
-      const rowBorder  = 'border-top:1px solid #3a3a3a;border-bottom:1px solid #3a3a3a;';
+      const rowBg      = '#242424';
 
       // ── Summary row (clickable) ──
       const summaryTr = el('tr', { style: 'cursor:pointer;background:' + rowBg + ';' });
-      summaryTr.addEventListener('mouseenter', () => { summaryTr.style.background = '#282828'; });
+      summaryTr.addEventListener('mouseenter', () => { summaryTr.style.background = '#2e2e2e'; });
       summaryTr.addEventListener('mouseleave', () => { summaryTr.style.background = rowBg; });
       summaryTr.addEventListener('click', () => {
         if (expandedPlayers.has(m.id)) expandedPlayers.delete(m.id);
@@ -740,15 +739,20 @@
         refreshOverview();
       });
 
-      [
-        { v: (isExpanded ? '▾  ' : '▸  ') + m.name,                  align: 'left',  color: '#e8e8e8' },
-        { v: villCount,                                                  align: 'right', color: '#bbb' },
-        { v: troopRows.length ? fmt(troopTotal)             : '—',      align: 'right', color: '#bbb' },
-        { v: troopRows.length ? fmt(totalActive)            : '—',      align: 'right', color: '#bbb' },
-        { v: troopRows.length ? fmt(totalIn)                : '—',      align: 'right', color: '#bbb' },
-        { v: defFlat.length   ? fmt(defIn) + ' / ' + fmt(defEn) : '—', align: 'right', color: '#bbb' },
-      ].forEach(({ v, align, color }) => {
-        const td = el('td', { style: 'padding:8px 10px;text-align:' + align + ';color:' + color + ';' + rowBorder });
+      const summaryCells = [
+        { v: (isExpanded ? '▾  ' : '▸  ') + m.name,                  align: 'left',  color: '#f0f0f0' },
+        { v: villCount,                                                  align: 'right', color: '#ccc' },
+        { v: troopRows.length ? fmt(troopTotal)             : '—',      align: 'right', color: '#ccc' },
+        { v: troopRows.length ? fmt(totalActive)            : '—',      align: 'right', color: '#ccc' },
+        { v: troopRows.length ? fmt(totalIn)                : '—',      align: 'right', color: '#ccc' },
+        { v: defFlat.length   ? fmt(defIn) + ' / ' + fmt(defEn) : '—', align: 'right', color: '#ccc' },
+      ];
+      summaryCells.forEach(({ v, align, color }, ci) => {
+        const td = el('td', { style:
+          'padding:9px 10px;text-align:' + align + ';color:' + color + ';' +
+          'border-top:2px solid #484848;border-bottom:1px solid #333;' +
+          (ci === 0 ? 'border-left:3px solid #4a6a4a;font-weight:500;' : '')
+        });
         td.textContent = v;
         summaryTr.appendChild(td);
       });
@@ -757,10 +761,15 @@
       // ── Village detail (expanded) ──
       if (isExpanded) {
         const detailTr = el('tr', { style: 'background:#0a0a0a;' });
-        const detailTd = el('td', { colSpan: 6, style: 'padding:0;border-bottom:1px solid #1e1e1e;' });
+        const detailTd = el('td', { colSpan: 6, style: 'padding:0;' });
         detailTd.appendChild(buildVillageDetail(selectedModes, troopRows, defFlat, bldgRows, unitNames, unitImgSrcs, activeCmdSrc, incomingSrc, buildingHeaders, buildingImgSrcs));
         detailTr.appendChild(detailTd);
         overviewTbody.appendChild(detailTr);
+        // spacer separates this player block from the next
+        const spacerTr = el('tr');
+        const spacerTd = el('td', { colSpan: 6, style: 'height:5px;padding:0;background:#111;border-bottom:2px solid #484848;' });
+        spacerTr.appendChild(spacerTd);
+        overviewTbody.appendChild(spacerTr);
       }
     });
 
@@ -1105,22 +1114,26 @@
     e.stopPropagation();
     showHelp('Tribe Info Extractor — Overview',
       '<b>How it works</b><br>' +
-      'On load the script reads your player ID from <code>game_data</code>, fetches all three ally data pages for every tribe member, and caches the results. No navigation required.<br><br>' +
-      '<b>Workflow</b><br>' +
-      '1. Run the script from any page while logged in.<br>' +
-      '2. Watch the message bar — it shows fetch progress and ✓ Done when complete.<br>' +
-      '3. Untick any members you want to exclude — the overview updates immediately.<br>' +
-      '4. Select export mode and click Copy CSV or Copy JSON.<br><br>' +
+      'Run from any page while logged in. The script reads your player ID, fetches ally data for every tribe member, and caches it — no navigation needed. Progress shows in the message bar; click it to see the full fetch history.<br><br>' +
+      '<b>Filter section</b><br>' +
+      'Tick/untick members to include or exclude them — the Overview updates instantly and any expanded rows collapse. Use <b>All / None</b> to bulk-select members.<br>' +
+      'Check one or more <b>data modes</b> (Troops, Defense, Buildings) — these control what appears in the Overview and what gets exported.<br><br>' +
+      '<b>Overview section</b><br>' +
+      'Click any player row to expand it and see per-village data. Click again to collapse.<br>' +
+      '&bull; <b>Troops + Defense together:</b> merged table with up to 3 sub-rows per village — <span style="color:#88c">troops</span> (unit counts owned by that player), <span style="color:#4a9">in village</span> (defense present), <span style="color:#c84">en route</span> (defense traveling).<br>' +
+      '&bull; <b>Troops or Defense alone:</b> single table for that mode.<br>' +
+      '&bull; <b>Buildings:</b> always its own table when checked, shown after troops/defense.<br>' +
+      'The unexpanded row shows totals: villages, troops, active commands, incoming, and defense in-village / en-route.<br><br>' +
+      '<b>Export section</b><br>' +
+      'Copy CSV or Copy JSON exports data for all ticked members in all checked modes.<br>' +
+      '&bull; One mode checked: mode-specific column layout.<br>' +
+      '&bull; Multiple modes checked: one combined row per village with all columns merged.<br><br>' +
       '<b>Member Troops</b><br>' +
-      'All troops <i>owned by</i> the player, grouped by home village — includes units currently away. ' +
-      'Columns: player_name, player_id, village, coords, points, active_commands, incoming, then one column per unit type.<br><br>' +
+      'All troops <i>owned by</i> the player, grouped by home village — includes units currently away. Columns: active_commands, incoming, one per unit type.<br><br>' +
       '<b>Member Defense</b><br>' +
-      'Troops <i>present in or traveling to</i> each village — includes allied support. ' +
-      'Columns: …points, incoming_attacks, spear_in_village…militia_in_village, spear_enroute…militia_enroute.<br><br>' +
+      'Troops <i>present in or traveling to</i> each village — includes allied support. Split into in-village and en-route sub-rows.<br><br>' +
       '<b>Member Buildings</b><br>' +
-      'Building levels per village — columns depend on the world\'s building set.<br><br>' +
-      '<b>All Modes</b><br>' +
-      'One combined row per village with troops, defense, and building columns merged.'
+      'Building levels per village — columns depend on the world\'s building set.'
     );
   });
 
