@@ -573,11 +573,11 @@
 
   // ── Help Overlay ──
   helpOverlay = el('div', { style: 'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:200000;display:none;align-items:center;justify-content:center;' });
-  const helpContent  = el('div', { style: 'background:#1a1a1a;color:#fff;padding:24px;border-radius:8px;border:2px solid #444;max-width:520px;width:90%;' });
-  helpTitle          = el('div', { style: 'font-size:16px;font-weight:bold;margin-bottom:12px;color:#e0e0e0;' });
-  helpText           = el('div', { style: 'font-size:13px;color:#bbb;line-height:1.7;margin-bottom:16px;' });
+  const helpContent  = el('div', { style: 'background:#1a1a1a;color:#fff;padding:16px;border-radius:8px;border:2px solid #444;max-width:420px;width:90%;max-height:70vh;display:flex;flex-direction:column;' });
+  helpTitle          = el('div', { style: 'font-size:13px;font-weight:bold;margin-bottom:8px;color:#e0e0e0;flex-shrink:0;' });
+  helpText           = el('div', { style: 'font-size:11px;color:#bbb;line-height:1.5;margin-bottom:12px;overflow-y:auto;flex:1;' });
   const helpCloseRow = el('div', { style: 'display:flex;justify-content:center;' });
-  const helpCloseBtn = el('button', { innerText: 'Close', type: 'button', style: 'cursor:pointer;padding:8px 24px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;' });
+  const helpCloseBtn = el('button', { innerText: 'Close', type: 'button', style: 'cursor:pointer;padding:5px 16px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;font-size:11px;flex-shrink:0;' });
   helpCloseRow.appendChild(helpCloseBtn);
   helpContent.append(helpTitle, helpText, helpCloseRow);
   helpOverlay.appendChild(helpContent);
@@ -695,7 +695,7 @@
     const { members, unitNames, unitImgSrcs, activeCmdSrc, incomingSrc, buildingHeaders, buildingImgSrcs } = cachedData;
 
     if (!members.length) {
-      overviewTbody.innerHTML = '<tr><td colspan="6" style="color:#888;text-align:center;padding:16px;">No data loaded yet</td></tr>';
+      overviewTbody.innerHTML = '<tr><td colspan="5" style="color:#888;text-align:center;padding:16px;">No data loaded yet</td></tr>';
       overviewSummary.textContent = '';
       return;
     }
@@ -713,10 +713,14 @@
       const troopTotal  = troopRows.reduce((s, r) => s + r.units.reduce((a, b) => a + b, 0), 0);
       const totalActive = troopRows.reduce((s, r) => s + r.active_commands, 0);
       const totalIn     = troopRows.reduce((s, r) => s + r.incoming, 0);
-      const defIn       = defFlat.reduce((s, r) => s + r.in_village.reduce((a, b) => a + b, 0), 0);
-      const defEn       = defFlat.reduce((s, r) => s + r.enroute.reduce((a, b) => a + b, 0), 0);
       const villCount   = troopRows.length || defFlat.length || bldgRows.length;
       totalVillages    += villCount;
+
+      // Per-unit totals across all villages for this member
+      const unitTotals     = unitNames.map((_, i) => troopRows.reduce((s, r) => s + (r.units[i] || 0), 0));
+      const troopBreakdown = troopRows.length
+        ? unitNames.map((_, i) => i).filter(i => unitTotals[i] > 0).map(i => ({ src: unitImgSrcs[i], name: unitNames[i], count: unitTotals[i] }))
+        : null;
 
       const isExpanded = expandedPlayers.has(m.id);
       const rowBg      = '#242424';
@@ -732,14 +736,13 @@
       });
 
       const summaryCells = [
-        { v: (isExpanded ? '▾  ' : '▸  ') + m.name,                  label: null,          align: 'left',  color: '#f0f0f0' },
-        { v: villCount,                                                  label: 'villages',              align: 'right', color: '#ccc' },
-        { v: troopRows.length ? fmt(troopTotal)             : '—',      label: 'troops total',          align: 'right', color: '#ccc' },
-        { v: troopRows.length ? fmt(totalActive)            : '—',      label: 'active commands',       align: 'right', color: '#ccc' },
-        { v: troopRows.length ? fmt(totalIn)                : '—',      label: 'incoming attacks',      align: 'right', color: '#ccc' },
-        { v: defFlat.length   ? fmt(defIn) + ' / ' + fmt(defEn) : '—', label: 'defense in vil / away', align: 'right', color: '#ccc' },
+        { v: (isExpanded ? '▾  ' : '▸  ') + m.name,           label: null,               align: 'left',  color: '#f0f0f0' },
+        { v: villCount,                                          label: 'villages',         align: 'right', color: '#ccc' },
+        { v: troopRows.length ? fmt(totalActive) : '—',         label: 'active commands',  align: 'right', color: '#ccc' },
+        { v: troopRows.length ? fmt(totalIn)     : '—',         label: 'incoming attacks', align: 'right', color: '#ccc' },
+        { v: troopRows.length ? fmt(troopTotal)  : '—',         label: 'troops total',     align: 'right', color: '#ccc', breakdown: troopBreakdown },
       ];
-      summaryCells.forEach(({ v, label, align, color }, ci) => {
+      summaryCells.forEach(({ v, label, align, color, breakdown }, ci) => {
         const td = el('td', { style:
           'padding:7px 10px;text-align:' + align + ';color:' + color + ';' +
           'border-top:2px solid #484848;border-bottom:1px solid #333;' +
@@ -748,9 +751,26 @@
         if (label) {
           const val = el('span', { style: 'display:block;' });
           val.textContent = v;
-          const lbl = el('span', { style: 'display:block;font-size:10px;color:#777;font-weight:normal;margin-top:1px;' });
+          const lbl = el('span', { style: 'display:block;font-size:10px;color:#aaa;font-weight:normal;margin-top:1px;' });
           lbl.textContent = label;
           td.append(val, lbl);
+          if (breakdown && breakdown.length) {
+            const bdRow = el('div', { style: 'display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;justify-content:flex-end;' });
+            breakdown.forEach(({ src, name, count }) => {
+              const chip = el('span', { style: 'display:inline-flex;align-items:center;gap:2px;', title: name });
+              if (src) {
+                const img = document.createElement('img');
+                img.src = src; img.alt = name;
+                img.style.cssText = 'width:15px;height:15px;image-rendering:pixelated;vertical-align:middle;';
+                chip.appendChild(img);
+              }
+              const cnt = el('span', { style: 'font-size:10px;color:#bbb;' });
+              cnt.textContent = fmt(count);
+              chip.appendChild(cnt);
+              bdRow.appendChild(chip);
+            });
+            td.appendChild(bdRow);
+          }
         } else {
           td.textContent = v;
         }
@@ -761,13 +781,13 @@
       // ── Village detail (expanded) ──
       if (isExpanded) {
         const detailTr = el('tr', { style: 'background:#0a0a0a;' });
-        const detailTd = el('td', { colSpan: 6, style: 'padding:0;' });
+        const detailTd = el('td', { colSpan: 5, style: 'padding:0;' });
         detailTd.appendChild(buildVillageDetail(selectedModes, troopRows, defFlat, bldgRows, unitNames, unitImgSrcs, activeCmdSrc, incomingSrc, buildingHeaders, buildingImgSrcs));
         detailTr.appendChild(detailTd);
         overviewTbody.appendChild(detailTr);
         // spacer separates this player block from the next
         const spacerTr = el('tr');
-        const spacerTd = el('td', { colSpan: 6, style: 'height:5px;padding:0;background:#111;border-bottom:2px solid #484848;' });
+        const spacerTd = el('td', { colSpan: 5, style: 'height:5px;padding:0;background:#111;border-bottom:2px solid #484848;' });
         spacerTr.appendChild(spacerTd);
         overviewTbody.appendChild(spacerTr);
       }
@@ -811,7 +831,7 @@
     function makeSection(label, tableBuilder) {
       const section = el('div');
       if (selectedModes.length > 1) {
-        const hd = el('div', { style: 'font-size:10px;color:#555;padding:4px 10px 2px;letter-spacing:0.5px;text-transform:uppercase;' });
+        const hd = el('div', { style: 'font-size:10px;color:#999;padding:4px 10px 2px;letter-spacing:0.5px;text-transform:uppercase;' });
         hd.textContent = label;
         section.appendChild(hd);
       }
