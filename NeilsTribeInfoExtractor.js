@@ -536,18 +536,10 @@
 
   const overviewContent = el('div');
   const overviewSummary = el('div', { style: 'font-size:12px;color:#888;text-align:center;margin-bottom:10px;' });
-  const overviewScroll  = el('div', { style: 'overflow:auto;max-height:55vh;' });
+  const overviewScroll  = el('div', { style: 'overflow-x:auto;' });
   const overviewTable   = el('table', { style: 'min-width:100%;border-collapse:collapse;font-size:12px;' });
-  const overviewThead   = el('thead', { style: 'position:sticky;top:0;z-index:5;' });
-  const overviewThr     = el('tr');
-  ['Member', 'Villages', 'Troops', 'Active cmds', 'Incoming', 'Defense'].forEach((h, i) => {
-    const th = el('th', { style: 'padding:6px 10px;text-align:' + (i === 0 ? 'left' : 'right') + ';color:#888;background:#0f0f0f;border-bottom:2px solid #333;font-weight:normal;font-size:11px;white-space:nowrap;letter-spacing:0.3px;' });
-    th.textContent = h;
-    overviewThr.appendChild(th);
-  });
-  overviewThead.appendChild(overviewThr);
   const overviewTbody = el('tbody');
-  overviewTable.append(overviewThead, overviewTbody);
+  overviewTable.appendChild(overviewTbody);
   overviewScroll.appendChild(overviewTable);
   overviewContent.append(overviewSummary, overviewScroll);
   overviewSection.appendChild(overviewContent);
@@ -740,20 +732,28 @@
       });
 
       const summaryCells = [
-        { v: (isExpanded ? '▾  ' : '▸  ') + m.name,                  align: 'left',  color: '#f0f0f0' },
-        { v: villCount,                                                  align: 'right', color: '#ccc' },
-        { v: troopRows.length ? fmt(troopTotal)             : '—',      align: 'right', color: '#ccc' },
-        { v: troopRows.length ? fmt(totalActive)            : '—',      align: 'right', color: '#ccc' },
-        { v: troopRows.length ? fmt(totalIn)                : '—',      align: 'right', color: '#ccc' },
-        { v: defFlat.length   ? fmt(defIn) + ' / ' + fmt(defEn) : '—', align: 'right', color: '#ccc' },
+        { v: (isExpanded ? '▾  ' : '▸  ') + m.name,                  label: null,          align: 'left',  color: '#f0f0f0' },
+        { v: villCount,                                                  label: 'villages',    align: 'right', color: '#ccc' },
+        { v: troopRows.length ? fmt(troopTotal)             : '—',      label: 'troops',      align: 'right', color: '#ccc' },
+        { v: troopRows.length ? fmt(totalActive)            : '—',      label: 'active cmds', align: 'right', color: '#ccc' },
+        { v: troopRows.length ? fmt(totalIn)                : '—',      label: 'incoming',    align: 'right', color: '#ccc' },
+        { v: defFlat.length   ? fmt(defIn) + ' / ' + fmt(defEn) : '—', label: 'def in/out',  align: 'right', color: '#ccc' },
       ];
-      summaryCells.forEach(({ v, align, color }, ci) => {
+      summaryCells.forEach(({ v, label, align, color }, ci) => {
         const td = el('td', { style:
-          'padding:9px 10px;text-align:' + align + ';color:' + color + ';' +
+          'padding:7px 10px;text-align:' + align + ';color:' + color + ';' +
           'border-top:2px solid #484848;border-bottom:1px solid #333;' +
           (ci === 0 ? 'border-left:3px solid #4a6a4a;font-weight:500;' : '')
         });
-        td.textContent = v;
+        if (label) {
+          const val = el('span', { style: 'display:block;' });
+          val.textContent = v;
+          const lbl = el('span', { style: 'display:block;font-size:10px;color:#555;font-weight:normal;margin-top:1px;' });
+          lbl.textContent = label;
+          td.append(val, lbl);
+        } else {
+          td.textContent = v;
+        }
         summaryTr.appendChild(td);
       });
       overviewTbody.appendChild(summaryTr);
