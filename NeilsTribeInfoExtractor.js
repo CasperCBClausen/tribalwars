@@ -366,38 +366,48 @@
     return Array.from(map.values());
   }
 
-  function combinedToCSV(rows, unitNames, buildingHeaders) {
+  function combinedToCSV(rows, unitNames, buildingHeaders, { hasTroops = true, hasDef = true, hasBldg = true } = {}) {
     const headers = [
       'player_name', 'player_id', 'village', 'coords', 'points',
-      'active_commands', 'incoming_attacks',
-      ...unitNames,
-      ...unitNames.map(u => u + '_in_village'),
-      ...unitNames.map(u => u + '_enroute'),
-      ...buildingHeaders,
+      ...(hasTroops ? ['active_commands', 'incoming_attacks'] : []),
+      ...(hasTroops ? unitNames : []),
+      ...(hasDef    ? unitNames.map(u => u + '_in_village') : []),
+      ...(hasDef    ? unitNames.map(u => u + '_enroute') : []),
+      ...(hasBldg   ? buildingHeaders : []),
     ];
     const lines = [csvTimestamp(), headers.map(escapeCSV).join(',')];
     rows.forEach(r => {
       const vals = [
         r.player_name, r.player_id, r.village, r.coords, r.points,
-        r.active_commands, r.incoming_attacks,
-        ...r.troops, ...r.in_village, ...r.enroute, ...r.buildings,
+        ...(hasTroops ? [r.active_commands, r.incoming_attacks] : []),
+        ...(hasTroops ? r.troops : []),
+        ...(hasDef    ? r.in_village : []),
+        ...(hasDef    ? r.enroute : []),
+        ...(hasBldg   ? r.buildings : []),
       ];
       lines.push(vals.map(escapeCSV).join(','));
     });
     return lines.join('\n');
   }
 
-  function combinedToJSON(rows, unitNames, buildingHeaders) {
+  function combinedToJSON(rows, unitNames, buildingHeaders, { hasTroops = true, hasDef = true, hasBldg = true } = {}) {
     return JSON.stringify(withTimestamp(rows.map(r => {
       const obj = {
         player_name: r.player_name, player_id: r.player_id,
         village: r.village, coords: r.coords, points: r.points,
-        active_commands: r.active_commands, incoming_attacks: r.incoming_attacks,
       };
-      unitNames.forEach((u, i) => { obj[u]                = r.troops[i]     || 0; });
-      unitNames.forEach((u, i) => { obj[u + '_in_village'] = r.in_village[i] || 0; });
-      unitNames.forEach((u, i) => { obj[u + '_enroute']   = r.enroute[i]    || 0; });
-      buildingHeaders.forEach((h, i) => { obj[h] = r.buildings[i] || ''; });
+      if (hasTroops) {
+        obj.active_commands  = r.active_commands;
+        obj.incoming_attacks = r.incoming_attacks;
+        unitNames.forEach((u, i) => { obj[u] = r.troops[i] || 0; });
+      }
+      if (hasDef) {
+        unitNames.forEach((u, i) => { obj[u + '_in_village'] = r.in_village[i] || 0; });
+        unitNames.forEach((u, i) => { obj[u + '_enroute']   = r.enroute[i]    || 0; });
+      }
+      if (hasBldg) {
+        buildingHeaders.forEach((h, i) => { obj[h] = r.buildings[i] || ''; });
+      }
       return obj;
     })), null, 2);
   }
@@ -680,13 +690,17 @@
         })), null, 2);
       }
     } else {
-      // 0 or 2+ modes → combined format (missing data filled with zeros)
-      const troopRows = selectedModes.includes('members_troops')    ? pick(cachedData.troops)                        : [];
-      const flat      = selectedModes.includes('members_defense')   ? flattenDefenseRows(pick(cachedData.defenseRaw)) : [];
-      const buildRows = selectedModes.includes('members_buildings') ? pick(cachedData.buildings)                      : [];
+      // 0 or 2+ modes → combined format, only columns for checked modes
+      const hasTroops = selectedModes.includes('members_troops');
+      const hasDef    = selectedModes.includes('members_defense');
+      const hasBldg   = selectedModes.includes('members_buildings');
+      const troopRows = hasTroops ? pick(cachedData.troops)                        : [];
+      const flat      = hasDef    ? flattenDefenseRows(pick(cachedData.defenseRaw)) : [];
+      const buildRows = hasBldg   ? pick(cachedData.buildings)                      : [];
       const combined  = combineAllModes(troopRows, flat, buildRows, unitNames, buildingHeaders);
-      lastCSV  = combinedToCSV(combined, unitNames, buildingHeaders);
-      lastJSON = combinedToJSON(combined, unitNames, buildingHeaders);
+      const flags     = { hasTroops, hasDef, hasBldg };
+      lastCSV  = combinedToCSV(combined, unitNames, buildingHeaders, flags);
+      lastJSON = combinedToJSON(combined, unitNames, buildingHeaders, flags);
     }
   }
 
