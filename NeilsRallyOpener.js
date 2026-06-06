@@ -529,7 +529,7 @@
   // Unit Templates Section
   const templatesSection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
   const templatesSectionHeader = el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;' });
-  const templatesSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;flex:1;' });
+  const templatesSectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;flex:1;cursor:pointer;' });
   templatesSectionTitle.textContent = 'Unit Templates';
   const templatesCollapseBtn = el('button', { innerText: '+', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
   const templatesHelpBtn     = el('button', { innerText: '?', type: 'button', title: 'Help', style: 'cursor:pointer;padding:2px 7px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:3px;font-size:13px;font-weight:bold;line-height:1;margin-left:4px;' });
@@ -585,7 +585,7 @@
   // Rally Point Opener Section
   const rallySection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;position:relative;' });
   const rallySectionHeader = el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;' });
-  const rallySectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;flex:1;' });
+  const rallySectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;flex:1;cursor:pointer;' });
   rallySectionTitle.textContent = 'Rally Point Opener';
   const rallyCollapseBtn = el('button', { innerText: '+', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
   const rallyHelpBtn     = el('button', { innerText: '?', type: 'button', title: 'Help', style: 'cursor:pointer;padding:2px 7px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:3px;font-size:13px;font-weight:bold;line-height:1;margin-left:4px;' });
@@ -670,7 +670,7 @@
   // Attack Plan Section
   const attackPlanSection      = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
   const attackPlanHeader       = el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;' });
-  const attackPlanTitle        = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;flex:1;' });
+  const attackPlanTitle        = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;flex:1;cursor:pointer;' });
   attackPlanTitle.textContent  = 'Attack Plans';
   const attackPlanCollapseBtn  = el('button', { innerText: '+', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
   const attackPlanHelpBtn      = el('button', { innerText: '?', type: 'button', title: 'Help', style: 'cursor:pointer;padding:2px 7px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:3px;font-size:13px;font-weight:bold;line-height:1;margin-left:4px;' });
@@ -864,9 +864,12 @@
   closeBtn.addEventListener('click', () => container.remove());
 
   // Collapse toggles
-  templatesCollapseBtn.onclick  = makeCollapseHandler(templatesContent,  templatesCollapseBtn);
-  rallyCollapseBtn.onclick      = makeCollapseHandler(rallyContent,      rallyCollapseBtn);
-  attackPlanCollapseBtn.onclick = makeCollapseHandler(attackPlanContent, attackPlanCollapseBtn);
+  const templatesHandler  = makeCollapseHandler(templatesContent,  templatesCollapseBtn);
+  const rallyHandler      = makeCollapseHandler(rallyContent,      rallyCollapseBtn);
+  const attackPlanHandler = makeCollapseHandler(attackPlanContent, attackPlanCollapseBtn);
+  templatesCollapseBtn.onclick  = templatesHandler;  templatesSectionTitle.onclick  = templatesHandler;
+  rallyCollapseBtn.onclick      = rallyHandler;      rallySectionTitle.onclick      = rallyHandler;
+  attackPlanCollapseBtn.onclick = attackPlanHandler; attackPlanTitle.onclick        = attackPlanHandler;
 
   // Help
   helpCloseBtn.addEventListener('click', () => { helpOverlay.style.display = 'none'; });
