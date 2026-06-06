@@ -733,11 +733,11 @@
 
       const summaryCells = [
         { v: (isExpanded ? '▾  ' : '▸  ') + m.name,                  label: null,          align: 'left',  color: '#f0f0f0' },
-        { v: villCount,                                                  label: 'villages',    align: 'right', color: '#ccc' },
-        { v: troopRows.length ? fmt(troopTotal)             : '—',      label: 'troops',      align: 'right', color: '#ccc' },
-        { v: troopRows.length ? fmt(totalActive)            : '—',      label: 'active cmds', align: 'right', color: '#ccc' },
-        { v: troopRows.length ? fmt(totalIn)                : '—',      label: 'incoming',    align: 'right', color: '#ccc' },
-        { v: defFlat.length   ? fmt(defIn) + ' / ' + fmt(defEn) : '—', label: 'def in/out',  align: 'right', color: '#ccc' },
+        { v: villCount,                                                  label: 'villages',              align: 'right', color: '#ccc' },
+        { v: troopRows.length ? fmt(troopTotal)             : '—',      label: 'troops total',          align: 'right', color: '#ccc' },
+        { v: troopRows.length ? fmt(totalActive)            : '—',      label: 'active commands',       align: 'right', color: '#ccc' },
+        { v: troopRows.length ? fmt(totalIn)                : '—',      label: 'incoming attacks',      align: 'right', color: '#ccc' },
+        { v: defFlat.length   ? fmt(defIn) + ' / ' + fmt(defEn) : '—', label: 'defense in vil / away', align: 'right', color: '#ccc' },
       ];
       summaryCells.forEach(({ v, label, align, color }, ci) => {
         const td = el('td', { style:
@@ -748,7 +748,7 @@
         if (label) {
           const val = el('span', { style: 'display:block;' });
           val.textContent = v;
-          const lbl = el('span', { style: 'display:block;font-size:10px;color:#555;font-weight:normal;margin-top:1px;' });
+          const lbl = el('span', { style: 'display:block;font-size:10px;color:#777;font-weight:normal;margin-top:1px;' });
           lbl.textContent = label;
           td.append(val, lbl);
         } else {
