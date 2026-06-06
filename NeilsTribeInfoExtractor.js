@@ -1181,9 +1181,9 @@
       '&bull; <b>Buildings:</b> always its own table when checked, shown after troops/defense.<br>' +
       'The unexpanded row shows totals: villages, troops, active commands, incoming, and defense in-village / en-route.<br><br>' +
       '<b>Export section</b><br>' +
-      'Copy CSV or Copy JSON exports data for all ticked members in all checked modes.<br>' +
+      'Copy CSV or Copy JSON exports data for all ticked members. Only columns for <b>checked modes</b> are included — unchecked modes produce no columns in the output.<br>' +
       '&bull; One mode checked: mode-specific column layout.<br>' +
-      '&bull; Multiple modes checked: one combined row per village with all columns merged.<br><br>' +
+      '&bull; Multiple modes checked: one combined row per village, columns for each checked mode only.<br><br>' +
       '<b>Member Troops</b><br>' +
       'All troops <i>owned by</i> the player, grouped by home village — includes units currently away. Columns: active_commands, incoming, one per unit type.<br><br>' +
       '<b>Member Defense</b><br>' +
