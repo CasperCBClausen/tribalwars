@@ -1029,6 +1029,14 @@
 
       const myMember = allMembers.find(m => m.id === myId) || { id: myId, name: 'Me' };
       const myTroops = parseTroopsPage(firstDoc, myMember);
+
+      // If we own villages but got no troop rows, TW served the page without data — rank too low
+      const myVillageCount = parseInt(window.game_data && game_data.player && game_data.player.villages) || 0;
+      if (!myTroops.rows.length && myVillageCount > 0) {
+        showMessage('✗ Access denied — Baron or Duke tribe privilege required to view member data');
+        return;
+      }
+
       cachedData.troops[myId] = myTroops.rows;
       if (myTroops.unitNames.length) { cachedData.unitNames = myTroops.unitNames; cachedData.unitImgSrcs = myTroops.unitImgSrcs; cachedData.activeCmdSrc = myTroops.activeCmdSrc; cachedData.incomingSrc = myTroops.incomingSrc; }
 
