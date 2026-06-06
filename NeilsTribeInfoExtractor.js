@@ -1000,6 +1000,12 @@
       return;
     }
 
+    const allyId = window.game_data && game_data.player && game_data.player.ally_id;
+    if (!allyId) {
+      showMessage('✗ Not in a tribe — tribe membership is required to use this script');
+      return;
+    }
+
     cachedData = { unitNames: [], unitImgSrcs: [], activeCmdSrc: '', incomingSrc: '', buildingHeaders: [], buildingImgSrcs: [], members: [], troops: {}, defenseRaw: {}, buildings: {} };
     let fetchCount = 0;
 
@@ -1015,7 +1021,7 @@
       const firstDoc = await doFetch('members_troops', myId);
       const allMembers = getMembersFromDoc(firstDoc);
       if (!allMembers.length) {
-        showMessage('✗ No members found — do you have tribe rights to view member info?');
+        showMessage('✗ Access denied — Baron or Duke tribe privilege is required to view member data');
         return;
       }
       cachedData.members = allMembers;
