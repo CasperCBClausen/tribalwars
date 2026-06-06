@@ -1158,6 +1158,8 @@
   msgHistoryCloseBtn.addEventListener('click', () => { msgHistoryOverlay.style.display = 'none'; });
   msgHistoryOverlay.addEventListener('click', e => { if (e.target === msgHistoryOverlay) msgHistoryOverlay.style.display = 'none'; });
 
+  membersContent.style.display = 'none'; membersCollapseBtn.innerText = '+';
+  resultsContent.style.display = 'none'; resultsCollapseBtn.innerText = '+';
   membersCollapseBtn.onclick  = makeCollapseHandler(membersContent,  membersCollapseBtn);
   overviewCollapseBtn.onclick = makeCollapseHandler(overviewContent, overviewCollapseBtn);
   resultsCollapseBtn.onclick  = makeCollapseHandler(resultsContent,  resultsCollapseBtn);
