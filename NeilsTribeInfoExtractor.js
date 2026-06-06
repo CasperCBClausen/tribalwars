@@ -598,6 +598,8 @@
 
   /* ── State ── */
 
+  const fmt = n => Number(n).toLocaleString();
+
   let lastCSV  = '';
   let lastJSON = '';
   let cachedData = { unitNames: [], unitImgSrcs: [], activeCmdSrc: '', incomingSrc: '', buildingHeaders: [], buildingImgSrcs: [], members: [], troops: {}, defenseRaw: {}, buildings: {} };
@@ -622,13 +624,12 @@
     memberArr.forEach(m => {
       const label = el('label', { style: 'display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 10px;background:#1a1a1a;border:1px solid #333;border-radius:4px;font-size:12px;color:#ddd;' });
       const cb    = el('input', { type: 'checkbox', checked: true, style: 'cursor:pointer;' });
-      memberCheckboxes[m.id] = { cb, member: m };
+      const pointsSpan = el('span', { style: 'color:#999;font-size:10px;margin-left:2px;' });
+      memberCheckboxes[m.id] = { cb, member: m, pointsSpan };
       cb.addEventListener('change', () => { expandedPlayers.clear(); refreshOverview(); });
       const nameSpan = el('span');
       nameSpan.textContent = m.name;
-      const idSpan = el('span', { style: 'color:#555;font-size:10px;' });
-      idSpan.textContent = '(' + m.id + ')';
-      label.append(cb, nameSpan, idSpan);
+      label.append(cb, nameSpan, pointsSpan);
       membersList.appendChild(label);
     });
   }
@@ -700,7 +701,6 @@
       return;
     }
 
-    const fmt = n => Number(n).toLocaleString();
     const selectedMembers = members.filter(m => selectedIds.has(m.id));
     let totalVillages = 0;
     overviewTbody.innerHTML = '';
@@ -1055,6 +1055,14 @@
       showMessage('✗ Failed on first fetch: ' + e.message);
       return;
     }
+
+    // Update member list labels with total points (sum of village points from troop data)
+    cachedData.members.forEach(m => {
+      const entry = memberCheckboxes[m.id];
+      if (!entry) return;
+      const total = (cachedData.troops[m.id] || []).reduce((s, r) => s + (r.points || 0), 0);
+      entry.pointsSpan.textContent = total ? ' · ' + fmt(total) + 'p' : '';
+    });
 
     const allMembers = cachedData.members;
 
