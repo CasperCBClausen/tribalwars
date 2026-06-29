@@ -674,7 +674,7 @@
   rallyContent.appendChild(columnsWrapper);
 
   const fromColumn  = el('div', { style: 'flex:1;display:flex;flex-direction:column;position:relative;' });
-  const fromLabel   = el('div', { style: 'font-weight:bold;margin-bottom:6px;color:#aaa;text-align:center;font-size:14px;' });
+  const fromLabel   = el('div', { style: 'font-weight:bold;margin-bottom:6px;color:#aaa;font-size:14px;' });
   fromLabel.textContent = 'FROM Coordinates';
   const fromTextarea = el('textarea', { rows: 8, style: 'width:100%;box-sizing:border-box;background:#0f0f0f;color:#fff;border:1px solid #444;padding:8px;border-radius:4px;resize:vertical;font-family:monospace;', placeholder: '111|222\n222|111\n223|111' });
   const fromOverlay  = el('div', { style: 'position:absolute;top:30px;left:0;right:0;bottom:0;background:rgba(15,15,15,0.95);border:1px solid #444;border-radius:4px;display:none;align-items:center;justify-content:center;color:#4a9eff;font-weight:bold;font-size:14px;pointer-events:none;' });
@@ -685,7 +685,7 @@
   const toHeaderRow      = el('div', { style: 'display:flex;align-items:center;gap:4px;margin-bottom:6px;' });
   const toLabel          = el('span', { style: 'font-weight:bold;color:#aaa;font-size:14px;flex:1;' });
   toLabel.textContent    = 'TO Coordinates';
-  const toTemplateSelect = el('select', { style: 'max-width:110px;background:#1a1a1a;color:#bbb;border:1px solid #444;border-radius:3px;font-size:11px;padding:1px 4px;cursor:pointer;' });
+  const toTemplateSelect = el('select', { style: 'max-width:165px;background:#1a1a1a;color:#bbb;border:1px solid #444;border-radius:3px;font-size:11px;padding:1px 4px;cursor:pointer;' });
   const btnSaveToTpl     = el('button', { innerText: '💾', type: 'button', title: 'Save current TO coords as template', style: 'cursor:pointer;padding:1px 5px;background:#2a3a4a;color:#adf;border:1px solid #3a5a7a;border-radius:3px;font-size:13px;line-height:1;flex-shrink:0;' });
   toHeaderRow.append(toLabel, toTemplateSelect, btnSaveToTpl);
   const toTextarea       = el('textarea', { rows: 8, style: 'width:100%;box-sizing:border-box;background:#0f0f0f;color:#fff;border:1px solid #444;padding:8px;border-radius:4px;resize:vertical;font-family:monospace;', placeholder: '123|234\n112|223\n112|224' });
