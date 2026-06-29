@@ -34,6 +34,15 @@
     spy: 'Scout', light: 'LC', marcher: 'MA', heavy: 'HC',
     ram: 'Ram', catapult: 'Cata', knight: 'Pala', snob: 'Noble'
   };
+  const UNIT_IMG_SRCS = (() => {
+    const srcs = {};
+    const anyImg = document.querySelector('img[src*="innogamescdn.com"]');
+    if (anyImg) {
+      const m = anyImg.src.match(/(https?:\/\/\w+\.innogamescdn\.com\/asset\/[a-z0-9]+\/)/);
+      if (m) ALL_UNIT_TYPES.forEach(u => { srcs[u] = m[1] + 'graphic/unit/unit_' + u + '.webp'; });
+    }
+    return srcs;
+  })();
   const POPUP_BLOCKED_HTML =
     'Your browser is blocking Rally Opener from opening tabs.<br><br>' +
     '<b>To fix:</b><br>' +
@@ -563,9 +572,15 @@
   const labelsRow = el('div', { style: 'display:flex;align-items:center;gap:6px;margin-bottom:3px;padding-left:9px;' });
   labelsRow.append(el('span', { style: 'width:15px;flex-shrink:0;' }), el('span', { style: 'width:45px;flex-shrink:0;' }));
   UNIT_TYPES.forEach(u => {
-    const lbl = el('span', { style: 'color:#888;font-size:9px;white-space:nowrap;width:50px;min-width:50px;text-align:center;display:block;flex-shrink:0;' });
-    lbl.textContent = UNIT_NAMES[u];
-    lbl.title = u;
+    const lbl = el('span', { style: 'width:50px;min-width:50px;text-align:center;display:flex;align-items:center;justify-content:center;flex-shrink:0;' });
+    if (UNIT_IMG_SRCS[u]) {
+      const img = el('img'); img.src = UNIT_IMG_SRCS[u]; img.alt = UNIT_NAMES[u]; img.title = UNIT_NAMES[u];
+      img.style.cssText = 'width:25px;height:25px;object-fit:contain;';
+      lbl.appendChild(img);
+    } else {
+      lbl.style.cssText += ';color:#888;font-size:9px;white-space:nowrap;';
+      lbl.textContent = UNIT_NAMES[u];
+    }
     labelsRow.appendChild(lbl);
   });
   templateEditor.appendChild(labelsRow);
@@ -664,8 +679,15 @@
   const fakeReservesInputsRow = el('div', { style: 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;' });
   const fakeReserveInputs = {};
   UNIT_TYPES.forEach(u => {
-    const lbl = el('span', { style: 'color:#888;font-size:9px;white-space:nowrap;width:50px;min-width:50px;text-align:center;display:block;flex-shrink:0;' });
-    lbl.textContent = UNIT_NAMES[u];
+    const lbl = el('span', { style: 'width:50px;min-width:50px;text-align:center;display:flex;align-items:center;justify-content:center;flex-shrink:0;' });
+    if (UNIT_IMG_SRCS[u]) {
+      const img = el('img'); img.src = UNIT_IMG_SRCS[u]; img.alt = UNIT_NAMES[u]; img.title = UNIT_NAMES[u];
+      img.style.cssText = 'width:25px;height:25px;object-fit:contain;';
+      lbl.appendChild(img);
+    } else {
+      lbl.style.cssText += ';color:#888;font-size:9px;white-space:nowrap;';
+      lbl.textContent = UNIT_NAMES[u];
+    }
     fakeReservesLabels.appendChild(lbl);
     fakeReserveInputs[u] = el('input', { type: 'number', min: '0', value: '', placeholder: '0', style: inputStyle });
     fakeReservesInputsRow.appendChild(fakeReserveInputs[u]);
