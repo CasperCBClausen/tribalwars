@@ -682,15 +682,14 @@
   fromColumn.append(fromLabel, fromTextarea, fromOverlay);
 
   const toColumn         = el('div', { style: 'flex:1;display:flex;flex-direction:column;' });
-  const toLabel          = el('div', { style: 'font-weight:bold;margin-bottom:4px;color:#aaa;text-align:center;font-size:14px;' });
+  const toHeaderRow      = el('div', { style: 'display:flex;align-items:center;gap:4px;margin-bottom:6px;' });
+  const toLabel          = el('span', { style: 'font-weight:bold;color:#aaa;font-size:14px;flex:1;' });
   toLabel.textContent    = 'TO Coordinates';
-  const toTemplateRow    = el('div', { style: 'display:flex;gap:4px;margin-bottom:6px;' });
-  const toTemplateSelect = el('select', { style: 'flex:1;min-width:0;background:#1a1a1a;color:#bbb;border:1px solid #444;border-radius:3px;font-size:11px;padding:2px 4px;cursor:pointer;' });
-  const btnSaveToTpl     = el('button', { innerText: 'Save', type: 'button', title: 'Save current TO coords as template', style: 'cursor:pointer;padding:2px 8px;background:#2a3a4a;color:#adf;border:1px solid #3a5a7a;border-radius:3px;font-size:11px;white-space:nowrap;' });
-  const btnDeleteToTpl   = el('button', { innerText: '✕', type: 'button', title: 'Delete selected template', style: 'cursor:pointer;padding:2px 7px;background:#3a1a1a;color:#f88;border:1px solid #5a2a2a;border-radius:3px;font-size:11px;' });
-  toTemplateRow.append(toTemplateSelect, btnSaveToTpl, btnDeleteToTpl);
+  const toTemplateSelect = el('select', { style: 'max-width:110px;background:#1a1a1a;color:#bbb;border:1px solid #444;border-radius:3px;font-size:11px;padding:1px 4px;cursor:pointer;' });
+  const btnSaveToTpl     = el('button', { innerText: '💾', type: 'button', title: 'Save current TO coords as template', style: 'cursor:pointer;padding:1px 5px;background:#2a3a4a;color:#adf;border:1px solid #3a5a7a;border-radius:3px;font-size:13px;line-height:1;flex-shrink:0;' });
+  toHeaderRow.append(toLabel, toTemplateSelect, btnSaveToTpl);
   const toTextarea       = el('textarea', { rows: 8, style: 'width:100%;box-sizing:border-box;background:#0f0f0f;color:#fff;border:1px solid #444;padding:8px;border-radius:4px;resize:vertical;font-family:monospace;', placeholder: '123|234\n112|223\n112|224' });
-  toColumn.append(toLabel, toTemplateRow, toTextarea);
+  toColumn.append(toHeaderRow, toTextarea);
   columnsWrapper.append(fromColumn, toColumn);
 
   // Checkbox row — always visible; advanced-only items start hidden
@@ -829,7 +828,7 @@
 
   function refreshToTemplateSelect() {
     toTemplateSelect.innerHTML = '';
-    toTemplateSelect.appendChild(el('option', { value: '', innerText: '-- Load TO template --' }));
+    toTemplateSelect.appendChild(el('option', { value: '', innerText: 'No template' }));
     Object.keys(toTemplates).sort().forEach(name => {
       toTemplateSelect.appendChild(el('option', { value: name, innerText: name }));
     });
@@ -1192,6 +1191,8 @@
     if (name && toTemplates[name] !== undefined) {
       toTextarea.value = toTemplates[name];
       showMessage('TO template "' + name + '" loaded');
+    } else {
+      toTextarea.value = '';
     }
   };
 
@@ -1205,17 +1206,6 @@
     refreshToTemplateSelect();
     toTemplateSelect.value = name;
     showMessage('TO template "' + name + '" saved');
-  };
-
-  btnDeleteToTpl.onclick = function() {
-    const name = toTemplateSelect.value;
-    if (!name) { showMessage('Select a template to delete'); return; }
-    if (confirm('Delete TO template "' + name + '"?')) {
-      delete toTemplates[name];
-      saveToTemplates();
-      refreshToTemplateSelect();
-      showMessage('TO template "' + name + '" deleted');
-    }
   };
 
   // Test data
