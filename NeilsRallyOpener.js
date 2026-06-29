@@ -80,7 +80,8 @@
       try { name = decodeURIComponent(name); } catch (e) {}
       const x = parts[2] ? Number(parts[2]) : null;
       const y = parts[3] ? Number(parts[3]) : null;
-      if (id && x != null && y != null) out.push({ id, name, x, y });
+      const playerId = parts[4] || null;
+      if (id && x != null && y != null) out.push({ id, name, x, y, playerId });
       return out;
     }, []);
   }
@@ -107,11 +108,14 @@
       .filter(l => /\d+\|\d+/.test(l));
   }
 
-  function coordToVillageId(coord) {
+  function coordToVillage(coord) {
     if (!coord) return null;
     const m = coord.match(/(\d+)\|(\d+)/);
-    if (!m) return null;
-    const v = villagesIndex.get(coordKey(Number(m[1]), Number(m[2])));
+    return m ? (villagesIndex.get(coordKey(Number(m[1]), Number(m[2]))) || null) : null;
+  }
+
+  function coordToVillageId(coord) {
+    const v = coordToVillage(coord);
     return v ? v.id : null;
   }
 
@@ -321,19 +325,42 @@
     return villages;
   }
 
-  function prepareTabsFromPairs(fromCoords, toCoords) {
-    const maxLen = Math.max(fromCoords.length, toCoords.length);
+  function prepareTabsFromPairs(fromCoords, toCoords, opts) {
+    const { advancedMode = false, maxPerVillage = 1, randomize = false } = opts || {};
     const pairs = [];
     const failed = [];
-
-    for (let i = 0; i < maxLen; i++) {
-      const fromCoord = fromCoords[i] || null;
-      const toCoord   = toCoords[i]   || null;
-      if (!fromCoord || !toCoord) { failed.push('Row ' + (i+1) + ': missing From or To coordinate'); continue; }
-      const fromId = coordToVillageId(fromCoord);
-      const toId   = coordToVillageId(toCoord);
-      if (!fromId || !toId) { failed.push('Row ' + (i+1) + ': village not found for ' + fromCoord + ' -> ' + toCoord); continue; }
-      pairs.push({ fromId, toId, index: i + 1 });
+    if (!advancedMode) {
+      const maxLen = Math.max(fromCoords.length, toCoords.length);
+      for (let i = 0; i < maxLen; i++) {
+        const fromCoord = fromCoords[i] || null;
+        const toCoord   = toCoords[i]   || null;
+        if (!fromCoord || !toCoord) { failed.push('Row ' + (i+1) + ': missing From or To coordinate'); continue; }
+        const fromV = coordToVillage(fromCoord);
+        const toV   = coordToVillage(toCoord);
+        if (!fromV) { failed.push('Row ' + (i+1) + ': FROM ' + fromCoord + ' does not exist'); continue; }
+        if (!toV)   { failed.push('Row ' + (i+1) + ': TO '   + toCoord   + ' does not exist'); continue; }
+        pairs.push({ fromId: fromV.id, toId: toV.id, index: i + 1 });
+      }
+    } else {
+      const fromVillages = [], toVillages = [];
+      fromCoords.forEach(coord => {
+        const v = coordToVillage(coord);
+        if (!v) { failed.push('FROM ' + coord + ' does not exist'); return; }
+        fromVillages.push({ id: v.id, coord });
+      });
+      toCoords.forEach(coord => {
+        const v = coordToVillage(coord);
+        if (!v) { failed.push('TO ' + coord + ' does not exist'); return; }
+        toVillages.push({ id: v.id, coord });
+      });
+      if (fromVillages.length && toVillages.length) {
+        const fromList = randomize ? fromVillages.slice().sort(() => Math.random() - 0.5) : fromVillages;
+        fromList.forEach((from, fi) => {
+          for (let k = 0; k < maxPerVillage; k++) {
+            pairs.push({ fromId: from.id, toId: toVillages[(fi * maxPerVillage + k) % toVillages.length].id, index: fi * maxPerVillage + k + 1 });
+          }
+        });
+      }
     }
 
     if (!pairs.length) { showMessage('No valid pairs found - check your coordinates'); return []; }
@@ -606,14 +633,15 @@
   body.appendChild(templatesSection);
 
   // Rally Point Opener Section
-  const rallySection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;position:relative;' });
+  const rallySection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
   const rallySectionHeader = el('div', { style: 'display:flex;align-items:center;margin-bottom:8px;' });
   const _rallyLeft         = el('div', { style: 'flex:1;display:flex;align-items:center;gap:6px;' });
-  const useGroupWrapper    = el('label', { style: 'display:flex;align-items:center;gap:6px;color:#bbb;font-size:11px;cursor:pointer;' });
-  const useGroupCheckbox   = el('input', { type: 'checkbox', style: 'cursor:pointer;' });
-  useGroupWrapper.append(useGroupCheckbox, el('span', { innerText: 'Use current group' }));
+  const modeToggle         = el('div', { style: 'display:flex;border:1px solid #444;border-radius:3px;overflow:hidden;flex-shrink:0;' });
+  const btnModeSimple      = el('button', { innerText: 'Simple', type: 'button', style: 'cursor:pointer;padding:3px 10px;background:#2a5a2a;color:#fff;border:none;font-size:11px;font-weight:bold;' });
+  const btnModeAdvanced    = el('button', { innerText: 'Advanced', type: 'button', style: 'cursor:pointer;padding:3px 10px;background:#1e1e1e;color:#555;border:none;font-size:11px;font-weight:bold;' });
+  modeToggle.append(btnModeSimple, btnModeAdvanced);
   const btnTestData        = el('button', { innerText: 'Test', title: 'Load Test Data', type: 'button', style: 'cursor:pointer;padding:4px 8px;background:#2a4a5a;color:#fff;border:1px solid #3a6a7a;border-radius:3px;font-size:11px;' });
-  _rallyLeft.append(useGroupWrapper, btnTestData);
+  _rallyLeft.append(modeToggle, btnTestData);
   const rallySectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;cursor:pointer;' });
   rallySectionTitle.textContent = 'Rally Point Opener';
   const rallyCollapseBtn   = el('button', { innerText: '+', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
@@ -623,8 +651,8 @@
   rallySectionHeader.append(_rallyLeft, rallySectionTitle, _rallyRight);
   rallySection.appendChild(rallySectionHeader);
 
-  const rallyContent    = el('div', { style: 'display:none;' });
-  const columnsWrapper  = el('div', { style: 'display:flex;gap:12px;margin-bottom:12px;' });
+  const rallyContent   = el('div', { style: 'display:none;' });
+  const columnsWrapper = el('div', { style: 'display:flex;gap:12px;margin-bottom:12px;' });
   rallyContent.appendChild(columnsWrapper);
 
   const fromColumn  = el('div', { style: 'flex:1;display:flex;flex-direction:column;position:relative;' });
@@ -642,37 +670,31 @@
   toColumn.append(toLabel, toTextarea);
   columnsWrapper.append(fromColumn, toColumn);
 
-  // Search fields
-  const searchWrapper = el('div', { style: 'display:flex;gap:12px;margin-bottom:12px;' });
-  rallyContent.appendChild(searchWrapper);
+  // Advanced options (hidden in Simple mode)
+  const advancedOptions  = el('div', { style: 'display:none;padding:8px;background:#0a0a0a;border-radius:4px;border:1px solid #2a2a2a;margin-bottom:12px;' });
 
-  function makeSearchField(labelText) {
-    const wrap     = el('div', { style: 'flex:1;display:flex;flex-direction:column;gap:4px;' });
-    const lbl      = el('div', { style: 'font-size:11px;color:#888;' });
-    lbl.textContent = labelText;
-    const input    = el('input', { placeholder: 'Search coords or names', style: 'width:100%;padding:6px;background:#0f0f0f;color:#fff;border:1px solid #444;border-radius:4px;box-sizing:border-box;' });
-    const results  = el('div', { style: 'position:relative;' });
-    const dropdown = el('div', { style: 'position:absolute;left:0;right:0;max-height:200px;overflow:auto;background:#1a1a1a;border:1px solid #444;border-radius:4px;padding:4px;display:none;z-index:100000;' });
-    results.appendChild(dropdown);
-    wrap.append(lbl, input, results);
-    return { wrap, input, dropdown };
-  }
+  const useGroupWrapper  = el('label', { style: 'display:flex;align-items:center;gap:6px;color:#bbb;font-size:11px;cursor:pointer;margin-bottom:8px;' });
+  const useGroupCheckbox = el('input', { type: 'checkbox', style: 'cursor:pointer;' });
+  useGroupWrapper.append(useGroupCheckbox, el('span', { innerText: 'Use current group' }));
+  advancedOptions.appendChild(useGroupWrapper);
 
-  const fromSearch = makeSearchField('Search FROM:');
-  const toSearch   = makeSearchField('Search TO:');
-  searchWrapper.append(fromSearch.wrap, toSearch.wrap);
-
-  // Open Tabs row
-  const openTabsRow     = el('div', { style: 'display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap;' });
-  const fakeModeWrapper = el('label', { style: 'display:flex;align-items:center;gap:6px;color:#bbb;font-size:12px;cursor:pointer;' });
+  const fakeModeWrapper  = el('label', { style: 'display:flex;align-items:center;gap:6px;color:#bbb;font-size:12px;cursor:pointer;margin-bottom:8px;' });
   const fakeModeCheckbox = el('input', { type: 'checkbox', style: 'cursor:pointer;' });
   fakeModeWrapper.append(fakeModeCheckbox, el('span', { innerText: 'Fake Mode (limit by available units)' }));
-  const btnOpenTabs = el('button', { innerText: 'Open Tabs', type: 'button', style: 'cursor:pointer;padding:10px 24px;background:#2a5a2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;font-weight:bold;font-size:14px;' });
-  openTabsRow.append(fakeModeWrapper, btnOpenTabs);
-  rallyContent.appendChild(openTabsRow);
+  advancedOptions.appendChild(fakeModeWrapper);
+
+  const maxAttacksRow   = el('div', { style: 'display:none;align-items:center;gap:8px;margin-bottom:8px;' });
+  const maxAttacksInput = el('input', { type: 'number', min: '1', value: '1', style: 'width:60px;padding:3px 4px;background:#1a1a1a;color:#fff;border:1px solid #444;border-radius:2px;font-size:11px;text-align:center;' });
+  maxAttacksRow.append(el('span', { innerText: 'Max attacks per village:', style: 'color:#bbb;font-size:11px;' }), maxAttacksInput);
+  advancedOptions.appendChild(maxAttacksRow);
+
+  const randomizeWrapper  = el('label', { style: 'display:flex;align-items:center;gap:6px;color:#bbb;font-size:11px;cursor:pointer;' });
+  const randomizeCheckbox = el('input', { type: 'checkbox', style: 'cursor:pointer;' });
+  randomizeWrapper.append(randomizeCheckbox, el('span', { innerText: 'Randomize pairings' }));
+  advancedOptions.appendChild(randomizeWrapper);
 
   // Fake Mode Reserves
-  const fakeReservesRow = el('div', { style: 'display:none;margin-top:8px;padding:8px;background:#0a0a0a;border-radius:4px;border:1px solid #2a2a2a;' });
+  const fakeReservesRow = el('div', { style: 'display:none;margin-top:8px;padding:8px;background:#111;border-radius:4px;border:1px solid #2a2a2a;' });
   const fakeReservesTitle = el('div', { style: 'font-size:11px;color:#888;margin-bottom:4px;' });
   fakeReservesTitle.textContent = 'Keep home (reserves per village):';
   const fakeReservesLabels = el('div', { style: 'display:flex;align-items:center;gap:6px;margin-bottom:2px;' });
@@ -693,7 +715,14 @@
     fakeReservesInputsRow.appendChild(fakeReserveInputs[u]);
   });
   fakeReservesRow.append(fakeReservesTitle, fakeReservesLabels, fakeReservesInputsRow);
-  rallyContent.appendChild(fakeReservesRow);
+  advancedOptions.appendChild(fakeReservesRow);
+
+  rallyContent.appendChild(advancedOptions);
+
+  const openTabsRow = el('div', { style: 'display:flex;justify-content:center;' });
+  const btnOpenTabs = el('button', { innerText: 'Open Tabs', type: 'button', style: 'cursor:pointer;padding:10px 24px;background:#2a5a2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;font-weight:bold;font-size:14px;' });
+  openTabsRow.append(btnOpenTabs);
+  rallyContent.appendChild(openTabsRow);
 
   rallySection.appendChild(rallyContent);
   body.appendChild(rallySection);
@@ -811,46 +840,6 @@
     return res;
   }
 
-  function setupSearch(inputEl, dropdownEl, targetTextarea) {
-    let timeout = 0;
-    inputEl.addEventListener('input', () => {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => {
-        const q = inputEl.value.trim().toLowerCase();
-        if (!q) { dropdownEl.style.display = 'none'; dropdownEl.innerHTML = ''; return; }
-        if (!villagesArr.length) {
-          dropdownEl.style.display = 'block';
-          dropdownEl.innerHTML = '<div style="padding:6px;color:#888;">No village data loaded</div>';
-          return;
-        }
-        const results = villagesArr.filter(v =>
-          coordKey(v.x, v.y).indexOf(q) !== -1 || (v.name && v.name.toLowerCase().indexOf(q) !== -1)
-        ).slice(0, 50);
-        if (!results.length) {
-          dropdownEl.style.display = 'block';
-          dropdownEl.innerHTML = '<div style="padding:6px;color:#888;">No matches</div>';
-          return;
-        }
-        dropdownEl.style.display = 'block';
-        dropdownEl.innerHTML = '';
-        results.forEach(r => {
-          const item = el('div', { style: 'padding:6px;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer;transition:background 0.2s;' });
-          item.innerHTML = '<span style="color:#4a9eff;">' + r.x + '|' + r.y + '</span> — <span style="color:#bbb;">' + r.name + '</span>';
-          item.addEventListener('mouseenter', () => { item.style.background = '#2a2a2a'; });
-          item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });
-          item.addEventListener('click', () => {
-            const lines = targetTextarea.value.trim() ? targetTextarea.value.trim().split('\n') : [];
-            lines.push(r.x + '|' + r.y);
-            targetTextarea.value = lines.join('\n');
-            dropdownEl.style.display = 'none';
-            inputEl.value = '';
-          });
-          dropdownEl.appendChild(item);
-        });
-      }, 120);
-    });
-  }
-
   /* ── Event Wiring ── */
 
   // Draggable
@@ -906,6 +895,19 @@
   rallyCollapseBtn.onclick      = rallyHandler;      rallySectionTitle.onclick      = rallyHandler;
   attackPlanCollapseBtn.onclick = attackPlanHandler; attackPlanTitle.onclick        = attackPlanHandler;
 
+  // Mode toggle logic
+  let isAdvancedMode = false;
+  function setRallyMode(advanced) {
+    isAdvancedMode = advanced;
+    btnModeSimple.style.background   = advanced ? '#1e1e1e' : '#2a5a2a';
+    btnModeSimple.style.color        = advanced ? '#555'    : '#fff';
+    btnModeAdvanced.style.background = advanced ? '#2a5a2a' : '#1e1e1e';
+    btnModeAdvanced.style.color      = advanced ? '#fff'    : '#555';
+    advancedOptions.style.display    = advanced ? 'block'   : 'none';
+  }
+  btnModeSimple.onclick   = () => setRallyMode(false);
+  btnModeAdvanced.onclick = () => setRallyMode(true);
+
   // Help
   helpCloseBtn.addEventListener('click', () => { helpOverlay.style.display = 'none'; });
   helpOverlay.addEventListener('click', e => { if (e.target === helpOverlay) helpOverlay.style.display = 'none'; });
@@ -921,18 +923,43 @@
 
   rallyHelpBtn.addEventListener('click', e => {
     e.stopPropagation();
-    showHelp('Rally Point Opener',
-      'Enter FROM and TO coordinates — one pair per line — then click <i>Open Tabs</i> to open a rally point tab for each pair.<br><br>' +
-      'Each row is matched by position: row 1 in FROM attacks row 1 in TO, row 2 attacks row 2, and so on.<br><br>' +
-      '<b>Example:</b><br>' +
-      '<code style="display:block;background:#0a0a0a;padding:8px;border-radius:4px;margin:6px 0;font-size:12px;line-height:1.8;">' +
-      'FROM &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;TO<br>' +
-      '531|537 → 534|534 &nbsp;(tab 1)<br>' +
-      '531|537 → 537|536 &nbsp;(tab 2)<br>' +
-      '539|544 → 534|534 &nbsp;(tab 3)' +
-      '</code>' +
-      'Use the search fields to find villages by name or coordinate and append them to the list.<br><br>' +
-      'Enable <i>Use current group</i> to automatically use your currently selected in-game village group as the FROM list.');
+    if (!isAdvancedMode) {
+      showHelp('Rally Point Opener — Simple',
+        'Enter FROM and TO coordinates — one per line — then click <i>Open Tabs</i>.<br><br>' +
+        'Each row is matched by position: FROM row 1 attacks TO row 1, FROM row 2 attacks TO row 2, and so on. If the lists have different lengths the shorter one determines how many tabs open.<br><br>' +
+        '<b>Example:</b><br>' +
+        '<code style="display:block;background:#0a0a0a;padding:8px;border-radius:4px;margin:6px 0;font-size:12px;line-height:1.8;">' +
+        'FROM &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;TO<br>' +
+        '531|537 → 534|534 &nbsp;(tab 1)<br>' +
+        '531|537 → 537|536 &nbsp;(tab 2)<br>' +
+        '539|544 → 534|534 &nbsp;(tab 3)' +
+        '</code>' +
+        'The FROM village can appear multiple times — each entry opens a separate tab to a different target.<br><br>' +
+        'Both coordinates are validated against local village data. Invalid coordinates are skipped and reported.');
+    } else {
+      showHelp('Rally Point Opener — Advanced',
+        '<b>Use current group</b><br>' +
+        'Replaces the FROM textarea with the villages in your currently active in-game village group. Pairings are distributed round-robin across all TO targets.<br><br>' +
+        '<b>Fake Mode</b><br>' +
+        'Reads available units from the Combined Village Overview before opening tabs. Villages with fewer units than the template requires are skipped.<br>' +
+        'Use <i>Keep home (reserves)</i> to subtract a minimum per unit type before the check.<br><br>' +
+        '<b>Max attacks per village</b> (visible when Fake Mode is on)<br>' +
+        'How many TO targets each FROM village can attack. Default is 1.<br>' +
+        'With 10 FROM villages, 5 TO targets, and max = 1: each village attacks one target, giving each target 2 attackers.<br>' +
+        'With max = 2: each village attempts 2 targets, giving 4 attackers per target (before Fake Mode filtering).<br><br>' +
+        'Fake Mode caps this further by actual available units — if a village can only support 1 send but max is 2, only 1 tab is opened for that village.<br><br>' +
+        '<b>Randomize pairings</b><br>' +
+        'Shuffles which FROM village is paired with which TO target. Clicking <i>Open Tabs</i> multiple times will produce different assignments.<br><br>' +
+        '<b>Example — 3 villages, 2 targets, max = 1, Template: 100 LC</b><br>' +
+        '<code style="display:block;background:#0a0a0a;padding:8px;border-radius:4px;margin:6px 0;font-size:12px;line-height:1.8;">' +
+        'Round-robin (no randomize):<br>' +
+        'V1 → T1, V2 → T2, V3 → T1<br><br>' +
+        'Village V1: 120 LC → meets template → tab opened<br>' +
+        'Village V2: 80 LC &nbsp;→ fails template → skipped<br>' +
+        'Village V3: 150 LC → meets template → tab opened<br>' +
+        'Result: T1 gets 2 tabs, T2 gets 0' +
+        '</code>');
+    }
   });
 
   attackPlanHelpBtn.addEventListener('click', e => {
@@ -958,9 +985,10 @@
       'Opens rally point tabs for multiple village pairs at once, letting you queue up attacks or fakes quickly without navigating manually.<br><br>' +
       '<b>How to use</b><br>' +
       '1. Optionally select or create a unit template to pre-fill troop counts.<br>' +
-      '2. Enter FROM and TO coordinates (one pair per line), or paste an attack plan.<br>' +
-      '3. Click <i>Open Tabs</i> or a wave button to open all rally points at once.<br><br>' +
-      'Village data is fetched on script load if: no data exists or the cached data is more than an hour old.<br><br>' +
+      '2. <b>Simple</b>: enter FROM and TO coordinates one per line, then click <i>Open Tabs</i>. Rows are paired by position.<br>' +
+      '3. <b>Advanced</b>: enable <i>Use current group</i> to pull FROM villages from your active group, <i>Fake Mode</i> to filter by available units, and <i>Randomize pairings</i> for varied assignments each run. With Fake Mode on, set <i>Max attacks per village</i> to let each village attack multiple targets.<br>' +
+      '4. Or paste an attack plan and click a wave button to open all attacks in that wave.<br><br>' +
+      'Village data is fetched on script load if no data exists or the cache is more than an hour old.<br><br>' +
       '<b>Premium requirements</b><br>' +
       'The following features require a <b>Premium Account</b>:<br>' +
       '— Unit templates (reads available units from the Combined Village Overview)<br>' +
@@ -975,10 +1003,8 @@
     const disabled = 'opacity:0.35;pointer-events:none;';
     templatesSection.style.cssText += disabled;
     templatesSection.title = 'Requires Premium Account';
-    fakeModeWrapper.style.cssText += disabled;
-    fakeModeWrapper.title = 'Requires Premium Account';
-    useGroupWrapper.style.cssText += disabled;
-    useGroupWrapper.title = 'Requires Premium Account';
+    btnModeAdvanced.style.cssText += 'opacity:0.35;pointer-events:none;cursor:not-allowed;';
+    btnModeAdvanced.title = 'Requires Premium Account';
   }
 
   // Message history
@@ -997,9 +1023,11 @@
   msgHistoryCloseBtn.addEventListener('click', () => { msgHistoryOverlay.style.display = 'none'; });
   msgHistoryOverlay.addEventListener('click', e => { if (e.target === msgHistoryOverlay) msgHistoryOverlay.style.display = 'none'; });
 
-  // Fake Mode toggle — show/hide reserves panel
+  // Fake Mode toggle — show/hide reserves panel and max attacks row
   fakeModeCheckbox.addEventListener('change', () => {
-    fakeReservesRow.style.display = fakeModeCheckbox.checked ? 'block' : 'none';
+    const on = fakeModeCheckbox.checked;
+    fakeReservesRow.style.display = on ? 'block' : 'none';
+    maxAttacksRow.style.display   = on ? 'flex'  : 'none';
   });
 
   // Fake reserves persistence
@@ -1076,16 +1104,6 @@
     }
   };
 
-  // Search
-  setupSearch(fromSearch.input, fromSearch.dropdown, fromTextarea);
-  setupSearch(toSearch.input,   toSearch.dropdown,   toTextarea);
-  document.addEventListener('click', ev => {
-    if (!container.contains(ev.target)) {
-      fromSearch.dropdown.style.display = 'none';
-      toSearch.dropdown.style.display   = 'none';
-    }
-  });
-
   // Open Tabs
   btnOpenTabs.onclick = function openTabs() {
     const toCoords = parseCoordinateList(toTextarea.value);
@@ -1098,10 +1116,15 @@
       fromCoords = parseCoordinateList(fromTextarea.value);
     }
     if (!fromCoords.length || !toCoords.length) {
-      showMessage('Please enter coordinates in both FROM and TO columns');
+      showMessage('Please enter coordinates in both FROM and TO fields');
       return;
     }
-    const urls = prepareTabsFromPairs(fromCoords, toCoords);
+    const maxPerVillage = fakeModeCheckbox.checked ? (parseInt(maxAttacksInput.value) || 1) : 1;
+    const urls = prepareTabsFromPairs(fromCoords, toCoords, {
+      advancedMode: isAdvancedMode,
+      maxPerVillage,
+      randomize: randomizeCheckbox.checked,
+    });
     if (!urls.length) return;
     showMessage('Opening ' + urls.length + ' tabs...');
     openUrls(urls);
