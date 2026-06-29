@@ -839,10 +839,11 @@
       if (['BUTTON','INPUT','TEXTAREA','SELECT','LABEL'].indexOf(t.tagName) !== -1) return;
       if (t.closest && t.closest('button,input,textarea,select,label')) return;
       if (noDragZones.some(z => z.contains(t))) return;
+      const r = container.getBoundingClientRect();
+      if (e.clientX > r.right - 16 && e.clientY > r.bottom - 16) return;
       e.preventDefault();
       isDragging = true;
       startX = e.clientX; startY = e.clientY;
-      const r = container.getBoundingClientRect();
       initLeft = r.left; initTop = r.top;
       document.onmousemove = onMouseMove;
       document.onmouseup   = onMouseUp;

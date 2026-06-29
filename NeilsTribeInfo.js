@@ -58,7 +58,7 @@
   }
 
   function cellInt(cell) {
-    return parseInt((cell.textContent || '').trim()) || 0;
+    return parseInt((cell.textContent || '').replace(/\D/g, '')) || 0;
   }
 
   /* ── Page Detection ── */
@@ -454,12 +454,12 @@
 
   /* ── UI Build ── */
 
-  if (document.getElementById('tw_tribe_extractor_ui')) {
-    document.getElementById('tw_tribe_extractor_ui').remove();
+  if (document.getElementById('tw_tribe_info_ui')) {
+    document.getElementById('tw_tribe_info_ui').remove();
   }
 
   const container = el('div', {
-    id:    'tw_tribe_extractor_ui',
+    id:    'tw_tribe_info_ui',
     style: 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:99999;' +
            'background:#1a1a1a;color:#fff;padding:0;border-radius:8px;' +
            'font-family:Arial,Helvetica,sans-serif;font-size:13px;width:1104px;max-height:88vh;' +
@@ -471,7 +471,7 @@
   const titleBar     = el('div', { style: 'cursor:move;padding:14px 16px;background:linear-gradient(135deg,#2a2a2a 0%,#1a1a1a 100%);border-top-left-radius:6px;border-top-right-radius:6px;user-select:none;border-bottom:2px solid #444;position:relative;flex-shrink:0;' });
   const titleWrapper = el('div', { style: 'text-align:center;position:relative;' });
   const titleEl      = el('div', { style: 'font-size:20px;font-weight:bold;color:#e0e0e0;text-shadow:2px 2px 4px rgba(0,0,0,0.6);letter-spacing:1px;' });
-  titleEl.textContent = 'TRIBE INFO EXTRACTOR';
+  titleEl.textContent = 'TRIBE INFO';
   const btnGlobalHelp = el('button', { innerText: '?', title: 'Help', type: 'button', style: 'position:absolute;left:10px;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 9px;background:#1a2a1a;color:#6d6;border:1px solid #2a4a2a;border-radius:4px;font-size:14px;font-weight:bold;z-index:2;' });
   const closeBtn      = el('button', { innerText: '✕', title: 'Close', style: 'position:absolute;right:0;top:50%;transform:translateY(-50%);cursor:pointer;padding:4px 10px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;font-size:16px;font-weight:bold;' });
   titleWrapper.append(titleEl, closeBtn);
@@ -1125,6 +1125,8 @@
       if (['BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'LABEL'].indexOf(t.tagName) !== -1) return;
       if (t.closest && t.closest('button,input,textarea,select,label')) return;
       if (noDragZones.some(z => z.contains(t))) return;
+      const cr = container.getBoundingClientRect();
+      if (e.clientX > cr.right - 16 && e.clientY > cr.bottom - 16) return;
       e.preventDefault();
       drag = true;
       sx = e.clientX; sy = e.clientY;
@@ -1177,7 +1179,7 @@
 
   btnGlobalHelp.addEventListener('click', e => {
     e.stopPropagation();
-    showHelp('Tribe Info Extractor — Overview',
+    showHelp('Tribe Info — Overview',
       '<b>How it works</b><br>' +
       'Run from any page while logged in. The script reads your player ID, fetches ally data for every tribe member, and caches it — no navigation needed. Progress shows in the message bar; click it to see the full fetch history.<br><br>' +
       '<b>Filter section</b><br>' +
