@@ -671,54 +671,55 @@
   toColumn.append(toLabel, toTextarea);
   columnsWrapper.append(fromColumn, toColumn);
 
-  // Advanced options (hidden in Simple mode)
-  const advancedOptions  = el('div', { style: 'display:none;padding:8px;background:#0a0a0a;border-radius:4px;border:1px solid #2a2a2a;margin-bottom:12px;' });
+  // Checkbox row — always visible; advanced-only items start hidden
+  const checkboxRow      = el('div', { style: 'display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:8px 0;' });
 
-  const useGroupWrapper  = el('label', { style: 'display:flex;align-items:center;gap:6px;color:#bbb;font-size:11px;cursor:pointer;margin-bottom:8px;' });
+  const useGroupWrapper  = el('label', { style: 'display:none;align-items:center;gap:6px;color:#bbb;font-size:11px;cursor:pointer;' });
   const useGroupCheckbox = el('input', { type: 'checkbox', style: 'cursor:pointer;' });
   useGroupWrapper.append(useGroupCheckbox, el('span', { innerText: 'Use current group' }));
-  advancedOptions.appendChild(useGroupWrapper);
+  checkboxRow.appendChild(useGroupWrapper);
 
-  const fakeModeWrapper  = el('label', { style: 'display:flex;align-items:center;gap:6px;color:#bbb;font-size:12px;cursor:pointer;margin-bottom:8px;' });
+  const fakeModeWrapper  = el('label', { style: 'display:none;align-items:center;gap:6px;color:#bbb;font-size:12px;cursor:pointer;' });
   const fakeModeCheckbox = el('input', { type: 'checkbox', style: 'cursor:pointer;' });
-  fakeModeWrapper.append(fakeModeCheckbox, el('span', { innerText: 'Fake Mode (limit by available units)' }));
-  advancedOptions.appendChild(fakeModeWrapper);
+  fakeModeWrapper.append(fakeModeCheckbox, el('span', { innerText: 'Fake Mode' }));
+  checkboxRow.appendChild(fakeModeWrapper);
 
-  const maxAttacksRow   = el('div', { style: 'display:none;align-items:center;gap:8px;margin-bottom:8px;' });
-  const maxAttacksInput = el('input', { type: 'number', min: '1', value: '1', style: 'width:60px;padding:3px 4px;background:#1a1a1a;color:#fff;border:1px solid #444;border-radius:2px;font-size:11px;text-align:center;' });
-  maxAttacksRow.append(el('span', { innerText: 'Max attacks per village:', style: 'color:#bbb;font-size:11px;' }), maxAttacksInput);
-  advancedOptions.appendChild(maxAttacksRow);
-
-  // Fake Mode Reserves
-  const fakeReservesRow = el('div', { style: 'display:none;margin-top:8px;padding:8px;background:#111;border-radius:4px;border:1px solid #2a2a2a;' });
-  const fakeReservesTitle = el('div', { style: 'font-size:11px;color:#888;margin-bottom:4px;' });
-  fakeReservesTitle.textContent = 'Keep home (reserves per village):';
-  const fakeReservesLabels = el('div', { style: 'display:flex;align-items:center;gap:6px;margin-bottom:2px;' });
-  const fakeReservesInputsRow = el('div', { style: 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;' });
-  const fakeReserveInputs = {};
-  UNIT_TYPES.forEach(u => {
-    const lbl = el('span', { style: 'width:50px;min-width:50px;text-align:center;display:flex;align-items:center;justify-content:center;flex-shrink:0;' });
-    if (UNIT_IMG_SRCS[u]) {
-      const img = el('img'); img.src = UNIT_IMG_SRCS[u]; img.alt = UNIT_NAMES[u]; img.title = UNIT_NAMES[u];
-      img.style.cssText = 'width:25px;height:25px;object-fit:contain;';
-      lbl.appendChild(img);
-    } else {
-      lbl.style.cssText += ';color:#888;font-size:9px;white-space:nowrap;';
-      lbl.textContent = UNIT_NAMES[u];
-    }
-    fakeReservesLabels.appendChild(lbl);
-    fakeReserveInputs[u] = el('input', { type: 'number', min: '0', value: '', placeholder: '0', style: inputStyle });
-    fakeReservesInputsRow.appendChild(fakeReserveInputs[u]);
-  });
-  fakeReservesRow.append(fakeReservesTitle, fakeReservesLabels, fakeReservesInputsRow);
-  advancedOptions.appendChild(fakeReservesRow);
-
-  rallyContent.appendChild(advancedOptions);
-
-  const randomizeWrapper  = el('label', { style: 'display:flex;align-items:center;gap:6px;color:#bbb;font-size:11px;cursor:pointer;margin:8px 0;' });
+  const randomizeWrapper  = el('label', { style: 'display:flex;align-items:center;gap:6px;color:#bbb;font-size:11px;cursor:pointer;' });
   const randomizeCheckbox = el('input', { type: 'checkbox', style: 'cursor:pointer;' });
   randomizeWrapper.append(randomizeCheckbox, el('span', { innerText: 'Randomize pairings' }));
-  rallyContent.appendChild(randomizeWrapper);
+  checkboxRow.appendChild(randomizeWrapper);
+
+  rallyContent.appendChild(checkboxRow);
+
+  // Max attacks (shown in Advanced + Fake Mode)
+  const maxAttacksRow   = el('div', { style: 'display:none;align-items:center;gap:8px;margin-bottom:8px;' });
+  const maxAttacksInput = el('input', { type: 'number', min: '1', value: '1', style: 'width:60px;padding:3px 4px;background:#1a1a1a;color:#fff;border:1px solid #444;border-radius:2px;font-size:11px;text-align:center;' });
+  maxAttacksRow.append(el('span', { innerText: 'Max attacks per FROM village:', style: 'color:#bbb;font-size:11px;' }), maxAttacksInput);
+  rallyContent.appendChild(maxAttacksRow);
+
+  // Fake Mode Reserves — compact single row of icon+input columns
+  const fakeReservesRow   = el('div', { style: 'display:none;margin-bottom:8px;padding:6px 8px;background:#0a0a0a;border-radius:4px;border:1px solid #2a2a2a;' });
+  const fakeReservesTitle = el('div', { style: 'font-size:11px;color:#888;margin-bottom:4px;' });
+  fakeReservesTitle.textContent = 'Keep home (reserves per village):';
+  const fakeReservesUnitsRow = el('div', { style: 'display:flex;align-items:flex-end;gap:4px;flex-wrap:wrap;' });
+  const fakeReserveInputs = {};
+  UNIT_TYPES.forEach(u => {
+    const col = el('div', { style: 'display:flex;flex-direction:column;align-items:center;gap:2px;' });
+    if (UNIT_IMG_SRCS[u]) {
+      const img = el('img'); img.src = UNIT_IMG_SRCS[u]; img.alt = UNIT_NAMES[u]; img.title = UNIT_NAMES[u];
+      img.style.cssText = 'width:20px;height:20px;object-fit:contain;';
+      col.appendChild(img);
+    } else {
+      const lbl = el('span', { style: 'color:#888;font-size:8px;white-space:nowrap;text-align:center;width:46px;' });
+      lbl.textContent = UNIT_NAMES[u];
+      col.appendChild(lbl);
+    }
+    fakeReserveInputs[u] = el('input', { type: 'number', min: '0', value: '', placeholder: '0', style: 'width:46px;padding:2px 3px;background:#1a1a1a;color:#fff;border:1px solid #444;border-radius:2px;box-sizing:border-box;font-size:11px;text-align:center;' });
+    col.appendChild(fakeReserveInputs[u]);
+    fakeReservesUnitsRow.appendChild(col);
+  });
+  fakeReservesRow.append(fakeReservesTitle, fakeReservesUnitsRow);
+  rallyContent.appendChild(fakeReservesRow);
 
   const openTabsRow     = el('div', { style: 'display:flex;justify-content:center;margin-bottom:8px;' });
   const btnGenerateTabs = el('button', { innerText: 'Generate Tabs', type: 'button', style: 'cursor:pointer;padding:10px 24px;background:#2a5a2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;font-weight:bold;font-size:14px;' });
@@ -907,7 +908,12 @@
     btnModeSimple.style.color        = advanced ? '#555'    : '#fff';
     btnModeAdvanced.style.background = advanced ? '#2a5a2a' : '#1e1e1e';
     btnModeAdvanced.style.color      = advanced ? '#fff'    : '#555';
-    advancedOptions.style.display    = advanced ? 'block'   : 'none';
+    useGroupWrapper.style.display  = advanced ? 'flex' : 'none';
+    fakeModeWrapper.style.display  = advanced ? 'flex' : 'none';
+    if (!advanced) {
+      maxAttacksRow.style.display   = 'none';
+      fakeReservesRow.style.display = 'none';
+    }
   }
   btnModeSimple.onclick   = () => setRallyMode(false);
   btnModeAdvanced.onclick = () => setRallyMode(true);
@@ -947,7 +953,7 @@
         '<b>Fake Mode</b><br>' +
         'Reads available units from the Combined Village Overview before opening tabs. Villages with fewer units than the template requires are skipped.<br>' +
         'Use <i>Keep home (reserves)</i> to subtract a minimum per unit type before the check.<br><br>' +
-        '<b>Max attacks per village</b> (visible when Fake Mode is on)<br>' +
+        '<b>Max attacks per FROM village</b> (visible when Fake Mode is on)<br>' +
         'How many TO targets each FROM village can attack. Default is 1.<br>' +
         'With 10 FROM villages, 5 TO targets, and max = 1: each village attacks one target, giving each target 2 attackers.<br>' +
         'With max = 2: each village attempts 2 targets, giving 4 attackers per target (before Fake Mode filtering).<br><br>' +
@@ -1139,7 +1145,14 @@
       const end   = i + chunk.length;
       const label = start === end ? String(start) : start + '–' + end;
       const btn   = el('button', { innerText: label, type: 'button', style: 'cursor:pointer;padding:8px 16px;background:#1a3a2a;color:#8f8;border:1px solid #2a5a3a;border-radius:4px;font-weight:bold;font-size:13px;' });
-      btn.onclick = () => { showMessage('Opening tabs ' + label + '...'); openUrls(chunk); };
+      btn.onclick = () => {
+        showMessage('Opening tabs ' + label + '...');
+        openUrls(chunk);
+        btn.style.background = '#2a2a2a';
+        btn.style.color      = '#555';
+        btn.style.borderColor = '#3a3a3a';
+        btn.title = 'Already opened';
+      };
       tabChunksContainer.appendChild(btn);
     }
     showMessage('Generated ' + urls.length + ' tab' + (urls.length === 1 ? '' : 's'));
