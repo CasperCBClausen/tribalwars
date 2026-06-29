@@ -631,6 +631,9 @@
     keepModeRow.appendChild(keepUnitInputs[u]);
   });
 
+  msgBox = el('div', { style: 'margin-bottom:12px;color:#9f9f9f;min-height:18px;text-align:center;padding:6px;background:#0a0a0a;border-radius:4px;border:1px solid #2a2a2a;cursor:pointer;', title: 'Click to view message history' });
+  body.appendChild(msgBox);
+
   body.appendChild(templatesSection);
 
   // Rally Point Opener Section
@@ -753,10 +756,6 @@
   attackPlanContent.append(attackPlanRow, attackPlanContainer);
   attackPlanSection.appendChild(attackPlanContent);
   body.appendChild(attackPlanSection);
-
-  // Message Box
-  msgBox = el('div', { style: 'margin-bottom:12px;color:#9f9f9f;min-height:18px;text-align:center;padding:6px;background:#0a0a0a;border-radius:4px;border:1px solid #2a2a2a;cursor:pointer;', title: 'Click to view message history' });
-  body.appendChild(msgBox);
 
   // Footer
   const footer = el('div', { style: 'padding:12px;background:linear-gradient(135deg,#1a1a1a 0%,#0a0a0a 100%);border-bottom-left-radius:6px;border-bottom-right-radius:6px;border-top:2px solid #444;text-align:center;' });
@@ -935,8 +934,9 @@
     e.stopPropagation();
     if (!isAdvancedMode) {
       showHelp('Rally Point Opener — Simple',
-        'Enter FROM and TO coordinates — one per line — then click <i>Generate Tabs</i>.<br><br>' +
-        'Each row is matched by position: FROM row 1 attacks TO row 1, FROM row 2 attacks TO row 2, and so on. If the lists have different lengths the shorter one determines how many tabs open.<br><br>' +
+        'Enter FROM and TO coordinates (one per line), then click <i>Generate Tabs</i>.<br><br>' +
+        'Tabs are grouped into range buttons of up to 20 — click a button such as <b>1–20</b> to open that batch. Each button greys out after use so you know which batches have already been sent.<br><br>' +
+        'Rows are matched by position: FROM row 1 attacks TO row 1, FROM row 2 attacks TO row 2, and so on. A FROM village can appear more than once to attack several targets.<br><br>' +
         '<b>Example:</b><br>' +
         '<code style="display:block;background:#0a0a0a;padding:8px;border-radius:4px;margin:6px 0;font-size:12px;line-height:1.8;">' +
         'FROM &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;TO<br>' +
@@ -944,29 +944,28 @@
         '531|537 → 537|536 &nbsp;(tab 2)<br>' +
         '539|544 → 534|534 &nbsp;(tab 3)' +
         '</code>' +
-        'The FROM village can appear multiple times — each entry opens a separate tab to a different target.<br><br>' +
-        'Both coordinates are validated against local village data. Invalid coordinates are skipped and reported.');
+        'Check <i>Randomize pairings</i> to shuffle which FROM village is paired with which TO target on each Generate Tabs click.<br><br>' +
+        'All coordinates are validated against local village data — invalid entries are skipped and reported.');
     } else {
       showHelp('Rally Point Opener — Advanced',
+        'Switch between Simple and Advanced using the toggle in the section header. Advanced adds Premium-only options and changes the pairing strategy to round-robin distribution.<br><br>' +
         '<b>Use current group</b><br>' +
-        'Replaces the FROM textarea with the villages in your currently active in-game village group. Pairings are distributed round-robin across all TO targets.<br><br>' +
+        'Replaces the FROM textarea with every village in your currently active in-game group. Villages are distributed round-robin across the TO targets.<br><br>' +
         '<b>Fake Mode</b><br>' +
-        'Reads available units from the Combined Village Overview before opening tabs. Villages with fewer units than the template requires are skipped.<br>' +
-        'Use <i>Keep home (reserves)</i> to subtract a minimum per unit type before the check.<br><br>' +
-        '<b>Max attacks per FROM village</b> (visible when Fake Mode is on)<br>' +
-        'How many TO targets each FROM village can attack. Default is 1.<br>' +
-        'With 10 FROM villages, 5 TO targets, and max = 1: each village attacks one target, giving each target 2 attackers.<br>' +
-        'With max = 2: each village attempts 2 targets, giving 4 attackers per target (before Fake Mode filtering).<br><br>' +
-        'Fake Mode caps this further by actual available units — if a village can only support 1 send but max is 2, only 1 tab is opened for that village.<br><br>' +
+        'Reads available units from the Combined Village Overview before generating tabs. Villages that cannot meet the template are skipped.<br>' +
+        'Use <i>Keep home (reserves)</i> to reserve a minimum number of each unit type before checking.<br><br>' +
+        '<b>Max attacks per FROM village</b> (shown when Fake Mode is on)<br>' +
+        'Sets how many TO targets each FROM village is assigned. Default is 1.<br>' +
+        'With 10 FROM villages, 5 TO targets, and max = 1: each village gets one target, so each target receives 2 attackers.<br>' +
+        'With max = 2: each village is assigned 2 targets, giving up to 4 attackers per target before Fake Mode filters by unit availability.<br><br>' +
         '<b>Randomize pairings</b><br>' +
-        'Shuffles which FROM village is paired with which TO target. Clicking <i>Generate Tabs</i> multiple times will produce different assignments.<br><br>' +
-        '<b>Example — 3 villages, 2 targets, max = 1, Template: 100 LC</b><br>' +
+        'Also available in Simple mode. Shuffles the FROM→TO assignment on every <i>Generate Tabs</i> click for varied results.<br><br>' +
+        '<b>Example — 3 FROM villages, 2 TO targets, max = 1, Template: 100 LC</b><br>' +
         '<code style="display:block;background:#0a0a0a;padding:8px;border-radius:4px;margin:6px 0;font-size:12px;line-height:1.8;">' +
-        'Round-robin (no randomize):<br>' +
-        'V1 → T1, V2 → T2, V3 → T1<br><br>' +
-        'Village V1: 120 LC → meets template → tab opened<br>' +
-        'Village V2: 80 LC &nbsp;→ fails template → skipped<br>' +
-        'Village V3: 150 LC → meets template → tab opened<br>' +
+        'Round-robin pairing: V1→T1, V2→T2, V3→T1<br><br>' +
+        'V1: 120 LC → passes → tab opened<br>' +
+        'V2: 80 LC &nbsp;→ fails &nbsp;→ skipped<br>' +
+        'V3: 150 LC → passes → tab opened<br>' +
         'Result: T1 gets 2 tabs, T2 gets 0' +
         '</code>');
     }
@@ -992,20 +991,21 @@
     e.stopPropagation();
     showHelp('Rally Opener — Overview',
       '<b>Purpose</b><br>' +
-      'Opens rally point tabs for multiple village pairs at once, letting you queue up attacks or fakes quickly without navigating manually.<br><br>' +
+      'Opens rally point tabs for multiple village pairs at once — queue up attacks or fakes quickly without navigating manually.<br><br>' +
       '<b>How to use</b><br>' +
-      '1. Optionally select or create a unit template to pre-fill troop counts.<br>' +
-      '2. <b>Simple</b>: enter FROM and TO coordinates one per line, then click <i>Generate Tabs</i>. Rows are paired by position.<br>' +
-      '3. <b>Advanced</b>: enable <i>Use current group</i> to pull FROM villages from your active group, <i>Fake Mode</i> to filter by available units, and <i>Randomize pairings</i> for varied assignments each run. With Fake Mode on, set <i>Max attacks per village</i> to let each village attack multiple targets.<br>' +
-      '4. Or paste an attack plan and click a wave button to open all attacks in that wave.<br><br>' +
-      'Village data is fetched on script load if no data exists or the cache is more than an hour old.<br><br>' +
+      '1. Optionally create or select a unit template to pre-fill troop counts.<br>' +
+      '2. Enter FROM and TO coordinates (one per line) in the <b>Rally Point Opener</b> section.<br>' +
+      '3. Optionally check <i>Randomize pairings</i> (available in both Simple and Advanced modes).<br>' +
+      '4. Click <i>Generate Tabs</i>. Range buttons appear below (e.g. <b>1–20</b>, <b>21–30</b>). Click a button to open that batch — it greys out after use.<br>' +
+      '5. Switch to <b>Advanced</b> mode via the toggle in the section header for Premium options: <i>Use current group</i>, <i>Fake Mode</i>, and <i>Max attacks per FROM village</i>.<br>' +
+      '6. Or paste an attack plan and click a wave button to open all attacks in a wave at once.<br><br>' +
+      'Village data is fetched on script load if no data exists or the cache is over 1 hour old.<br><br>' +
       '<b>Premium requirements</b><br>' +
       'The following features require a <b>Premium Account</b>:<br>' +
-      '— Unit templates (reads available units from the Combined Village Overview)<br>' +
-      '— Fake Mode (checks unit availability per village)<br>' +
-      '— Use current group (village groups are a Premium feature)<br><br>' +
+      '— Unit templates (reads unit counts from the Combined Village Overview)<br>' +
+      '— Advanced mode: Fake Mode and Use current group<br><br>' +
       '<b>Popups blocked?</b><br>' +
-      'After clicking a tab range button, look for the popup blocked icon in your browser\'s address bar, click it, and choose <i>Always allow popups from this site</i>. Then try again.');
+      'After clicking a range button, look for the popup blocked icon in your browser\'s address bar, click it, and choose <i>Always allow popups from this site</i>. Then try again.');
   });
 
   // Feature gating
