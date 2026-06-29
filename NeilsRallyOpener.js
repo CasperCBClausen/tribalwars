@@ -23,7 +23,10 @@
 
   /* ── Constants ── */
 
-  const UNIT_TYPES = ['spear','sword','axe','archer','spy','light','marcher','heavy','ram','catapult','knight','snob'];
+  const ALL_UNIT_TYPES = ['spear','sword','axe','archer','spy','light','marcher','heavy','ram','catapult','knight','snob'];
+  const UNIT_TYPES = (typeof game_data !== 'undefined' && game_data.units && Object.keys(game_data.units).length)
+    ? ALL_UNIT_TYPES.filter(u => game_data.units[u])
+    : ALL_UNIT_TYPES;
   const UNIT_NAMES = {
     spear: 'Spear', sword: 'Sword', axe: 'Axe', archer: 'Archer',
     spy: 'Scout', light: 'LC', marcher: 'MA', heavy: 'HC',
