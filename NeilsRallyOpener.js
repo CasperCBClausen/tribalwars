@@ -229,6 +229,7 @@
 
   let unitTemplates = {};
   let currentTemplate = null;
+  let toTemplates = {};
 
   function loadTemplates() {
     try {
@@ -241,6 +242,19 @@
     try {
       localStorage.setItem('tw_unit_templates', JSON.stringify(unitTemplates));
     } catch (e) { console.error('Error saving templates:', e); }
+  }
+
+  function loadToTemplates() {
+    try {
+      const saved = localStorage.getItem('tw_to_templates');
+      if (saved) toTemplates = JSON.parse(saved);
+    } catch (e) {}
+  }
+
+  function saveToTemplates() {
+    try {
+      localStorage.setItem('tw_to_templates', JSON.stringify(toTemplates));
+    } catch (e) { console.error('Error saving TO templates:', e); }
   }
 
   /* ── Unit Calculations ── */
@@ -667,11 +681,16 @@
   fromOverlay.textContent = 'Using current group';
   fromColumn.append(fromLabel, fromTextarea, fromOverlay);
 
-  const toColumn   = el('div', { style: 'flex:1;display:flex;flex-direction:column;' });
-  const toLabel    = el('div', { style: 'font-weight:bold;margin-bottom:6px;color:#aaa;text-align:center;font-size:14px;' });
-  toLabel.textContent = 'TO Coordinates';
-  const toTextarea = el('textarea', { rows: 8, style: 'width:100%;box-sizing:border-box;background:#0f0f0f;color:#fff;border:1px solid #444;padding:8px;border-radius:4px;resize:vertical;font-family:monospace;', placeholder: '123|234\n112|223\n112|224' });
-  toColumn.append(toLabel, toTextarea);
+  const toColumn         = el('div', { style: 'flex:1;display:flex;flex-direction:column;' });
+  const toLabel          = el('div', { style: 'font-weight:bold;margin-bottom:4px;color:#aaa;text-align:center;font-size:14px;' });
+  toLabel.textContent    = 'TO Coordinates';
+  const toTemplateRow    = el('div', { style: 'display:flex;gap:4px;margin-bottom:6px;' });
+  const toTemplateSelect = el('select', { style: 'flex:1;min-width:0;background:#1a1a1a;color:#bbb;border:1px solid #444;border-radius:3px;font-size:11px;padding:2px 4px;cursor:pointer;' });
+  const btnSaveToTpl     = el('button', { innerText: 'Save', type: 'button', title: 'Save current TO coords as template', style: 'cursor:pointer;padding:2px 8px;background:#2a3a4a;color:#adf;border:1px solid #3a5a7a;border-radius:3px;font-size:11px;white-space:nowrap;' });
+  const btnDeleteToTpl   = el('button', { innerText: '✕', type: 'button', title: 'Delete selected template', style: 'cursor:pointer;padding:2px 7px;background:#3a1a1a;color:#f88;border:1px solid #5a2a2a;border-radius:3px;font-size:11px;' });
+  toTemplateRow.append(toTemplateSelect, btnSaveToTpl, btnDeleteToTpl);
+  const toTextarea       = el('textarea', { rows: 8, style: 'width:100%;box-sizing:border-box;background:#0f0f0f;color:#fff;border:1px solid #444;padding:8px;border-radius:4px;resize:vertical;font-family:monospace;', placeholder: '123|234\n112|223\n112|224' });
+  toColumn.append(toLabel, toTemplateRow, toTextarea);
   columnsWrapper.append(fromColumn, toColumn);
 
   // Checkbox row — always visible; advanced-only items start hidden
@@ -806,6 +825,15 @@
       currentTemplate = null;
       templateEditor.style.display = 'none';
     }
+  }
+
+  function refreshToTemplateSelect() {
+    toTemplateSelect.innerHTML = '';
+    toTemplateSelect.appendChild(el('option', { value: '', innerText: '-- Load TO template --' }));
+    Object.keys(toTemplates).sort().forEach(name => {
+      toTemplateSelect.appendChild(el('option', { value: name, innerText: name }));
+    });
+    toTemplateSelect.value = '';
   }
 
   function loadTemplateIntoEditor(name) {
@@ -1158,6 +1186,38 @@
     showMessage('Generated ' + urls.length + ' tab' + (urls.length === 1 ? '' : 's'));
   };
 
+  // TO coordinate templates
+  toTemplateSelect.onchange = function() {
+    const name = toTemplateSelect.value;
+    if (name && toTemplates[name] !== undefined) {
+      toTextarea.value = toTemplates[name];
+      showMessage('TO template "' + name + '" loaded');
+    }
+  };
+
+  btnSaveToTpl.onclick = function() {
+    const coords = toTextarea.value.trim();
+    if (!coords) { showMessage('TO textarea is empty'); return; }
+    const name = (prompt('Save TO template as:') || '').trim();
+    if (!name) return;
+    toTemplates[name] = coords;
+    saveToTemplates();
+    refreshToTemplateSelect();
+    toTemplateSelect.value = name;
+    showMessage('TO template "' + name + '" saved');
+  };
+
+  btnDeleteToTpl.onclick = function() {
+    const name = toTemplateSelect.value;
+    if (!name) { showMessage('Select a template to delete'); return; }
+    if (confirm('Delete TO template "' + name + '"?')) {
+      delete toTemplates[name];
+      saveToTemplates();
+      refreshToTemplateSelect();
+      showMessage('TO template "' + name + '" deleted');
+    }
+  };
+
   // Test data
   btnTestData.onclick = function loadTestData() {
     fromTextarea.value = '531|537\n531|537';
@@ -1184,6 +1244,8 @@
 
   loadTemplates();
   refreshTemplateSelect();
+  loadToTemplates();
+  refreshToTemplateSelect();
 
   try {
     const savedRes = localStorage.getItem('tw_fake_reserves');
