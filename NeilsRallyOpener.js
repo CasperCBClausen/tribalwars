@@ -48,7 +48,7 @@
     '<b>To fix:</b><br>' +
     '1. Look for the popup blocked icon in your browser\'s address bar (usually on the right).<br>' +
     '2. Click it and select <i>Always allow popups from this site</i>.<br>' +
-    '3. Click <i>Open Tabs</i> again.';
+    '3. Click the tab range button again.';
 
   /* ── Utilities ── */
 
@@ -330,9 +330,10 @@
     const pairs = [];
     const failed = [];
     if (!advancedMode) {
-      const maxLen = Math.max(fromCoords.length, toCoords.length);
+      const orderedFrom = randomize ? fromCoords.slice().sort(() => Math.random() - 0.5) : fromCoords;
+      const maxLen = Math.max(orderedFrom.length, toCoords.length);
       for (let i = 0; i < maxLen; i++) {
-        const fromCoord = fromCoords[i] || null;
+        const fromCoord = orderedFrom[i] || null;
         const toCoord   = toCoords[i]   || null;
         if (!fromCoord || !toCoord) { failed.push('Row ' + (i+1) + ': missing From or To coordinate'); continue; }
         const fromV = coordToVillage(fromCoord);
@@ -688,11 +689,6 @@
   maxAttacksRow.append(el('span', { innerText: 'Max attacks per village:', style: 'color:#bbb;font-size:11px;' }), maxAttacksInput);
   advancedOptions.appendChild(maxAttacksRow);
 
-  const randomizeWrapper  = el('label', { style: 'display:flex;align-items:center;gap:6px;color:#bbb;font-size:11px;cursor:pointer;' });
-  const randomizeCheckbox = el('input', { type: 'checkbox', style: 'cursor:pointer;' });
-  randomizeWrapper.append(randomizeCheckbox, el('span', { innerText: 'Randomize pairings' }));
-  advancedOptions.appendChild(randomizeWrapper);
-
   // Fake Mode Reserves
   const fakeReservesRow = el('div', { style: 'display:none;margin-top:8px;padding:8px;background:#111;border-radius:4px;border:1px solid #2a2a2a;' });
   const fakeReservesTitle = el('div', { style: 'font-size:11px;color:#888;margin-bottom:4px;' });
@@ -719,10 +715,18 @@
 
   rallyContent.appendChild(advancedOptions);
 
-  const openTabsRow = el('div', { style: 'display:flex;justify-content:center;' });
-  const btnOpenTabs = el('button', { innerText: 'Open Tabs', type: 'button', style: 'cursor:pointer;padding:10px 24px;background:#2a5a2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;font-weight:bold;font-size:14px;' });
-  openTabsRow.append(btnOpenTabs);
+  const randomizeWrapper  = el('label', { style: 'display:flex;align-items:center;gap:6px;color:#bbb;font-size:11px;cursor:pointer;margin:8px 0;' });
+  const randomizeCheckbox = el('input', { type: 'checkbox', style: 'cursor:pointer;' });
+  randomizeWrapper.append(randomizeCheckbox, el('span', { innerText: 'Randomize pairings' }));
+  rallyContent.appendChild(randomizeWrapper);
+
+  const openTabsRow     = el('div', { style: 'display:flex;justify-content:center;margin-bottom:8px;' });
+  const btnGenerateTabs = el('button', { innerText: 'Generate Tabs', type: 'button', style: 'cursor:pointer;padding:10px 24px;background:#2a5a2a;color:#fff;border:1px solid #3a7a3a;border-radius:4px;font-weight:bold;font-size:14px;' });
+  openTabsRow.append(btnGenerateTabs);
   rallyContent.appendChild(openTabsRow);
+
+  const tabChunksContainer = el('div', { style: 'display:flex;flex-wrap:wrap;gap:6px;justify-content:center;' });
+  rallyContent.appendChild(tabChunksContainer);
 
   rallySection.appendChild(rallyContent);
   body.appendChild(rallySection);
@@ -918,14 +922,14 @@
       'Define unit compositions to auto-fill when opening rally tabs.<br><br>' +
       '<b>Send mode:</b> sends exactly the number specified per attack.<br>' +
       '<b>Keep mode:</b> keeps that many troops home and sends the rest.<br><br>' +
-      'Select a template before clicking <i>Open Tabs</i> to apply it. Enable <i>Fake Mode</i> to automatically skip attacks where a village lacks sufficient units.');
+      'Select a template before clicking <i>Generate Tabs</i> to apply it. Enable <i>Fake Mode</i> to automatically skip attacks where a village lacks sufficient units.');
   });
 
   rallyHelpBtn.addEventListener('click', e => {
     e.stopPropagation();
     if (!isAdvancedMode) {
       showHelp('Rally Point Opener — Simple',
-        'Enter FROM and TO coordinates — one per line — then click <i>Open Tabs</i>.<br><br>' +
+        'Enter FROM and TO coordinates — one per line — then click <i>Generate Tabs</i>.<br><br>' +
         'Each row is matched by position: FROM row 1 attacks TO row 1, FROM row 2 attacks TO row 2, and so on. If the lists have different lengths the shorter one determines how many tabs open.<br><br>' +
         '<b>Example:</b><br>' +
         '<code style="display:block;background:#0a0a0a;padding:8px;border-radius:4px;margin:6px 0;font-size:12px;line-height:1.8;">' +
@@ -949,7 +953,7 @@
         'With max = 2: each village attempts 2 targets, giving 4 attackers per target (before Fake Mode filtering).<br><br>' +
         'Fake Mode caps this further by actual available units — if a village can only support 1 send but max is 2, only 1 tab is opened for that village.<br><br>' +
         '<b>Randomize pairings</b><br>' +
-        'Shuffles which FROM village is paired with which TO target. Clicking <i>Open Tabs</i> multiple times will produce different assignments.<br><br>' +
+        'Shuffles which FROM village is paired with which TO target. Clicking <i>Generate Tabs</i> multiple times will produce different assignments.<br><br>' +
         '<b>Example — 3 villages, 2 targets, max = 1, Template: 100 LC</b><br>' +
         '<code style="display:block;background:#0a0a0a;padding:8px;border-radius:4px;margin:6px 0;font-size:12px;line-height:1.8;">' +
         'Round-robin (no randomize):<br>' +
@@ -985,7 +989,7 @@
       'Opens rally point tabs for multiple village pairs at once, letting you queue up attacks or fakes quickly without navigating manually.<br><br>' +
       '<b>How to use</b><br>' +
       '1. Optionally select or create a unit template to pre-fill troop counts.<br>' +
-      '2. <b>Simple</b>: enter FROM and TO coordinates one per line, then click <i>Open Tabs</i>. Rows are paired by position.<br>' +
+      '2. <b>Simple</b>: enter FROM and TO coordinates one per line, then click <i>Generate Tabs</i>. Rows are paired by position.<br>' +
       '3. <b>Advanced</b>: enable <i>Use current group</i> to pull FROM villages from your active group, <i>Fake Mode</i> to filter by available units, and <i>Randomize pairings</i> for varied assignments each run. With Fake Mode on, set <i>Max attacks per village</i> to let each village attack multiple targets.<br>' +
       '4. Or paste an attack plan and click a wave button to open all attacks in that wave.<br><br>' +
       'Village data is fetched on script load if no data exists or the cache is more than an hour old.<br><br>' +
@@ -995,7 +999,7 @@
       '— Fake Mode (checks unit availability per village)<br>' +
       '— Use current group (village groups are a Premium feature)<br><br>' +
       '<b>Popups blocked?</b><br>' +
-      'After clicking Open Tabs, look for the popup blocked icon in your browser\'s address bar, click it, and choose <i>Always allow popups from this site</i>. Then try again.');
+      'After clicking a tab range button, look for the popup blocked icon in your browser\'s address bar, click it, and choose <i>Always allow popups from this site</i>. Then try again.');
   });
 
   // Feature gating
@@ -1104,8 +1108,8 @@
     }
   };
 
-  // Open Tabs
-  btnOpenTabs.onclick = function openTabs() {
+  // Generate Tabs
+  btnGenerateTabs.onclick = function generateTabs() {
     const toCoords = parseCoordinateList(toTextarea.value);
     let fromCoords;
     if (useGroupCheckbox.checked) {
@@ -1126,8 +1130,19 @@
       randomize: randomizeCheckbox.checked,
     });
     if (!urls.length) return;
-    showMessage('Opening ' + urls.length + ' tabs...');
-    openUrls(urls);
+
+    tabChunksContainer.innerHTML = '';
+    const CHUNK = 20;
+    for (let i = 0; i < urls.length; i += CHUNK) {
+      const chunk = urls.slice(i, i + CHUNK);
+      const start = i + 1;
+      const end   = i + chunk.length;
+      const label = start === end ? String(start) : start + '–' + end;
+      const btn   = el('button', { innerText: label, type: 'button', style: 'cursor:pointer;padding:8px 16px;background:#1a3a2a;color:#8f8;border:1px solid #2a5a3a;border-radius:4px;font-weight:bold;font-size:13px;' });
+      btn.onclick = () => { showMessage('Opening tabs ' + label + '...'); openUrls(chunk); };
+      tabChunksContainer.appendChild(btn);
+    }
+    showMessage('Generated ' + urls.length + ' tab' + (urls.length === 1 ? '' : 's'));
   };
 
   // Test data
