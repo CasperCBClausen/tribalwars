@@ -700,7 +700,7 @@
   // Rally Point Opener Section
   const rallySection       = el('div', { style: 'margin-bottom:12px;padding:12px;background:#0f0f0f;border-radius:6px;border:1px solid #333;' });
   const rallySectionHeader = el('div', { style: 'display:flex;align-items:center;margin-bottom:8px;' });
-  const _rallyLeft         = el('div', { style: 'flex:1;display:flex;align-items:center;gap:6px;' });
+  const _rallyLeft         = el('div', { style: 'flex:1;display:flex;align-items:center;gap:6px;visibility:hidden;' });
   const modeToggle         = el('div', { style: 'display:flex;border:1px solid #444;border-radius:3px;overflow:hidden;flex-shrink:0;' });
   const btnModeSimple      = el('button', { innerText: 'Simple', type: 'button', style: 'cursor:pointer;padding:3px 10px;background:#2a5a2a;color:#fff;border:none;font-size:11px;font-weight:bold;' });
   const btnModeAdvanced    = el('button', { innerText: 'Advanced', type: 'button', style: 'cursor:pointer;padding:3px 10px;background:#1e1e1e;color:#555;border:none;font-size:11px;font-weight:bold;' });
@@ -987,7 +987,7 @@
     const collapsed = rallyContent.style.display === 'none';
     rallyContent.style.display = collapsed ? 'block' : 'none';
     rallyCollapseBtn.innerText = collapsed ? '−' : '+';
-    _rallyLeft.style.display = collapsed ? 'flex' : 'none';
+    _rallyLeft.style.visibility = collapsed ? 'visible' : 'hidden';
   };
   templatesCollapseBtn.onclick  = templatesHandler;  templatesSectionTitle.onclick  = templatesHandler;
   rallyCollapseBtn.onclick      = rallyHandler;      rallySectionTitle.onclick      = rallyHandler;
