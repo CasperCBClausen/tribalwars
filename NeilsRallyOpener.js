@@ -103,9 +103,24 @@
 
   function parseCoordinateList(text) {
     if (!text) return [];
-    return text.trim().split(/\r?\n/)
-      .map(l => l.trim().replace(',', '|'))
-      .filter(l => /\d+\|\d+/.test(l));
+    const coords = [];
+    text.trim().split(/\r?\n/).forEach(line => {
+      const matches = line.replace(/,/g, '|').match(/\d+\|\d+/g);
+      if (matches) matches.forEach(m => coords.push(m));
+    });
+    return coords;
+  }
+
+  function normalizeCoordTextarea(textarea) {
+    const lines = textarea.value.split(/\r?\n/);
+    const result = [];
+    lines.forEach(line => {
+      const matches = line.replace(/,/g, '|').match(/\d+\|\d+/g);
+      if (matches && matches.length > 1) matches.forEach(m => result.push(m));
+      else result.push(line);
+    });
+    const newValue = result.join('\n');
+    if (newValue !== textarea.value) textarea.value = newValue;
   }
 
   function coordToVillage(coord) {
@@ -283,9 +298,14 @@
     for (const unitType in availableUnits) {
       const available = availableUnits[unitType] || 0;
       const tplValue = config[unitType] || 0;
-      const toSend = mode === 'send'
-        ? Math.min(tplValue, available)
-        : Math.max(0, available - tplValue);
+      let toSend;
+      if (mode === 'send') {
+        toSend = Math.min(tplValue, available);
+      } else {
+        // Keep mode: inactive units (not in config) are not sent
+        if (config[unitType] === undefined) continue;
+        toSend = Math.max(0, available - tplValue);
+      }
       if (toSend > 0) unitsToSend[unitType] = toSend;
     }
     return unitsToSend;
@@ -295,16 +315,24 @@
     if (!template || !template.units) return 0;
     const { mode, units: config } = template;
     const res = reserves || {};
+    if (mode === 'keep') {
+      let totalSendable = 0;
+      for (const unitType in config) {
+        const required = config[unitType];
+        if (!required) continue;
+        const available = availableUnits[unitType] || 0;
+        const effectiveAvailable = Math.max(0, available - (res[unitType] || 0));
+        totalSendable += Math.max(0, effectiveAvailable - required);
+      }
+      return totalSendable > 0 ? 1 : 0;
+    }
     let max = Infinity;
     for (const unitType in config) {
       const required = config[unitType];
       if (!required) continue;
       const available = availableUnits[unitType] || 0;
       const effectiveAvailable = Math.max(0, available - (res[unitType] || 0));
-      const possible = mode === 'send'
-        ? Math.floor(effectiveAvailable / required)
-        : (Math.max(0, effectiveAvailable - required) > 0 ? Infinity : 0);
-      max = Math.min(max, possible);
+      max = Math.min(max, Math.floor(effectiveAvailable / required));
     }
     return max === Infinity ? 0 : max;
   }
@@ -610,19 +638,24 @@
   const templateEditor = el('div', { style: 'display:none;margin-top:6px;padding:6px;background:#0a0a0a;border-radius:4px;border:1px solid #333;' });
   templatesContent.appendChild(templateEditor);
 
-  // Unit label row
+  // Unit label row — icons are clickable toggles to include/exclude each unit
+  const unitActiveState = {};
+  const unitIconEls     = {};
   const labelsRow = el('div', { style: 'display:flex;align-items:center;gap:6px;margin-bottom:3px;padding-left:9px;' });
-  labelsRow.append(el('span', { style: 'width:15px;flex-shrink:0;' }), el('span', { style: 'width:45px;flex-shrink:0;' }));
+  labelsRow.append(el('span', { style: 'width:15px;flex-shrink:0;' }), el('span', { innerText: 'Units:', style: 'color:#bbb;font-size:11px;min-width:45px;flex-shrink:0;' }));
   UNIT_TYPES.forEach(u => {
-    const lbl = el('span', { style: 'width:50px;min-width:50px;text-align:center;display:flex;align-items:center;justify-content:center;flex-shrink:0;' });
+    const lbl = el('span', { style: 'width:50px;min-width:50px;text-align:center;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;', title: (UNIT_NAMES[u] || u) + ' — click to toggle' });
     if (UNIT_IMG_SRCS[u]) {
-      const img = el('img'); img.src = UNIT_IMG_SRCS[u]; img.alt = UNIT_NAMES[u]; img.title = UNIT_NAMES[u];
+      const img = el('img'); img.src = UNIT_IMG_SRCS[u]; img.alt = UNIT_NAMES[u];
       img.style.cssText = 'width:25px;height:25px;object-fit:contain;';
       lbl.appendChild(img);
     } else {
       lbl.style.cssText += ';color:#888;font-size:9px;white-space:nowrap;';
       lbl.textContent = UNIT_NAMES[u];
     }
+    unitIconEls[u] = lbl;
+    unitActiveState[u] = false;
+    lbl.addEventListener('click', () => setUnitActive(u, !unitActiveState[u]));
     labelsRow.appendChild(lbl);
   });
   templateEditor.appendChild(labelsRow);
@@ -644,6 +677,17 @@
     sendModeRow.appendChild(unitInputs[u]);
     keepModeRow.appendChild(keepUnitInputs[u]);
   });
+
+  function setUnitActive(u, active) {
+    unitActiveState[u] = active;
+    unitIconEls[u].style.opacity = active ? '1' : '0.2';
+    unitIconEls[u].style.filter  = active ? '' : 'grayscale(80%)';
+    unitInputs[u].disabled           = !active;
+    unitInputs[u].style.opacity      = active ? '1' : '0.3';
+    keepUnitInputs[u].disabled       = !active;
+    keepUnitInputs[u].style.opacity  = active ? '1' : '0.3';
+  }
+  UNIT_TYPES.forEach(u => setUnitActive(u, false));
 
   msgBox = el('div', { style: 'margin-bottom:12px;color:#9f9f9f;min-height:18px;text-align:center;padding:6px;background:#0a0a0a;border-radius:4px;border:1px solid #2a2a2a;cursor:pointer;', title: 'Click to view message history' });
   body.appendChild(msgBox);
@@ -846,7 +890,11 @@
     keepModeRow.style.background = isSend ? '#0f0f0f' : '#1a3a1a';
     UNIT_TYPES.forEach(u => { unitInputs[u].value = ''; keepUnitInputs[u].value = ''; });
     const inputs = isSend ? unitInputs : keepUnitInputs;
-    UNIT_TYPES.forEach(u => { inputs[u].value = template.units[u] || ''; });
+    UNIT_TYPES.forEach(u => {
+      const val = template.units[u];
+      inputs[u].value = val || '';
+      setUnitActive(u, !!val);
+    });
   }
 
   function saveCurrentTemplate() {
@@ -855,6 +903,7 @@
     const inputs = mode === 'send' ? unitInputs : keepUnitInputs;
     const units = {};
     UNIT_TYPES.forEach(u => {
+      if (!unitActiveState[u]) return;
       const v = inputs[u].value.trim();
       if (v && v !== '0') units[u] = parseInt(v);
     });
@@ -1077,6 +1126,10 @@
       } catch (e) {}
     });
   });
+
+  // Auto-reformat space-separated coordinates on paste
+  fromTextarea.addEventListener('paste', () => setTimeout(() => normalizeCoordTextarea(fromTextarea), 0));
+  toTextarea.addEventListener('paste',   () => setTimeout(() => normalizeCoordTextarea(toTextarea),   0));
 
   // Use current group toggle
   useGroupCheckbox.addEventListener('change', () => {
