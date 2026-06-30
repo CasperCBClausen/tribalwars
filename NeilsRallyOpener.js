@@ -367,7 +367,7 @@
   }
 
   function prepareTabsFromPairs(fromCoords, toCoords, opts) {
-    const { advancedMode = false, maxPerVillage = 1, randomize = false } = opts || {};
+    const { advancedMode = false, maxPerVillage = 1, randomize = false, multiTarget = false } = opts || {};
     const pairs = [];
     const failed = [];
     if (!advancedMode) {
@@ -397,9 +397,13 @@
       });
       if (fromVillages.length && toVillages.length) {
         const fromList = randomize ? fromVillages.slice().sort(() => Math.random() - 0.5) : fromVillages;
+        const targetedTo = new Set();
         fromList.forEach((from, fi) => {
           for (let k = 0; k < maxPerVillage; k++) {
-            pairs.push({ fromId: from.id, toId: toVillages[(fi * maxPerVillage + k) % toVillages.length].id, index: fi * maxPerVillage + k + 1 });
+            const toVillage = toVillages[(fi * maxPerVillage + k) % toVillages.length];
+            if (!multiTarget && targetedTo.has(toVillage.id)) continue;
+            targetedTo.add(toVillage.id);
+            pairs.push({ fromId: from.id, toId: toVillage.id, index: fi * maxPerVillage + k + 1 });
           }
         });
       }
@@ -753,6 +757,11 @@
   randomizeWrapper.append(randomizeCheckbox, el('span', { innerText: 'Randomize pairings' }));
   checkboxRow.appendChild(randomizeWrapper);
 
+  const multiTargetWrapper  = el('label', { style: 'display:none;align-items:center;gap:6px;color:#bbb;font-size:11px;cursor:pointer;' });
+  const multiTargetCheckbox = el('input', { type: 'checkbox', style: 'cursor:pointer;' });
+  multiTargetWrapper.append(multiTargetCheckbox, el('span', { innerText: 'Repeat TO targets' }));
+  checkboxRow.appendChild(multiTargetWrapper);
+
   rallyContent.appendChild(checkboxRow);
 
   // Max attacks (shown in Advanced + Fake Mode)
@@ -987,8 +996,9 @@
     btnModeSimple.style.color        = advanced ? '#555'    : '#fff';
     btnModeAdvanced.style.background = advanced ? '#2a5a2a' : '#1e1e1e';
     btnModeAdvanced.style.color      = advanced ? '#fff'    : '#555';
-    useGroupWrapper.style.display  = advanced ? 'flex' : 'none';
-    fakeModeWrapper.style.display  = advanced ? 'flex' : 'none';
+    useGroupWrapper.style.display    = advanced ? 'flex' : 'none';
+    fakeModeWrapper.style.display    = advanced ? 'flex' : 'none';
+    multiTargetWrapper.style.display = advanced ? 'flex' : 'none';
     if (!advanced) {
       maxAttacksRow.style.display   = 'none';
       fakeReservesRow.style.display = 'none';
@@ -1221,6 +1231,7 @@
       advancedMode: isAdvancedMode,
       maxPerVillage,
       randomize: randomizeCheckbox.checked,
+      multiTarget: multiTargetCheckbox.checked,
     });
     if (!urls.length) return;
     const CHUNK = 20;
