@@ -372,10 +372,10 @@
     const failed = [];
     if (!advancedMode) {
       const orderedFrom = randomize ? fromCoords.slice().sort(() => Math.random() - 0.5) : fromCoords;
-      const maxLen = Math.max(orderedFrom.length, toCoords.length);
+      const maxLen = multiTarget ? orderedFrom.length : Math.max(orderedFrom.length, toCoords.length);
       for (let i = 0; i < maxLen; i++) {
         const fromCoord = orderedFrom[i] || null;
-        const toCoord   = toCoords[i]   || null;
+        const toCoord   = multiTarget ? toCoords[i % toCoords.length] : (toCoords[i] || null);
         if (!fromCoord || !toCoord) { failed.push('Row ' + (i+1) + ': missing From or To coordinate'); continue; }
         const fromV = coordToVillage(fromCoord);
         const toV   = coordToVillage(toCoord);
@@ -705,8 +705,7 @@
   const btnModeSimple      = el('button', { innerText: 'Simple', type: 'button', style: 'cursor:pointer;padding:3px 10px;background:#2a5a2a;color:#fff;border:none;font-size:11px;font-weight:bold;' });
   const btnModeAdvanced    = el('button', { innerText: 'Advanced', type: 'button', style: 'cursor:pointer;padding:3px 10px;background:#1e1e1e;color:#555;border:none;font-size:11px;font-weight:bold;' });
   modeToggle.append(btnModeSimple, btnModeAdvanced);
-  const btnTestData        = el('button', { innerText: 'Test', title: 'Load Test Data', type: 'button', style: 'cursor:pointer;padding:4px 8px;background:#2a4a5a;color:#fff;border:1px solid #3a6a7a;border-radius:3px;font-size:11px;' });
-  _rallyLeft.append(modeToggle, btnTestData);
+  _rallyLeft.append(modeToggle);
   const rallySectionTitle  = el('div', { style: 'font-weight:bold;color:#aaa;text-align:center;font-size:13px;cursor:pointer;' });
   rallySectionTitle.textContent = 'Rally Point Opener';
   const rallyCollapseBtn   = el('button', { innerText: '+', type: 'button', style: 'cursor:pointer;padding:2px 8px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:16px;font-weight:bold;line-height:1;' });
@@ -757,7 +756,7 @@
   randomizeWrapper.append(randomizeCheckbox, el('span', { innerText: 'Randomize pairings' }));
   checkboxRow.appendChild(randomizeWrapper);
 
-  const multiTargetWrapper  = el('label', { style: 'display:none;align-items:center;gap:6px;color:#bbb;font-size:11px;cursor:pointer;' });
+  const multiTargetWrapper  = el('label', { style: 'display:flex;align-items:center;gap:6px;color:#bbb;font-size:11px;cursor:pointer;' });
   const multiTargetCheckbox = el('input', { type: 'checkbox', style: 'cursor:pointer;' });
   multiTargetWrapper.append(multiTargetCheckbox, el('span', { innerText: 'Repeat TO targets' }));
   checkboxRow.appendChild(multiTargetWrapper);
@@ -1003,7 +1002,6 @@
     btnModeAdvanced.style.color      = advanced ? '#fff'    : '#555';
     useGroupWrapper.style.display    = advanced ? 'flex' : 'none';
     fakeModeWrapper.style.display    = advanced ? 'flex' : 'none';
-    multiTargetWrapper.style.display = advanced ? 'flex' : 'none';
     if (!advanced) {
       maxAttacksRow.style.display   = 'none';
       fakeReservesRow.style.display = 'none';
@@ -1033,15 +1031,11 @@
       showHelp('Rally Point Opener — Simple',
         'Enter FROM and TO coordinates (one per line), then click <i>Generate Tabs</i>.<br><br>' +
         'Tabs are grouped into range buttons of up to 20 — click a button such as <b>1–20</b> to open that batch. Each button greys out after use so you know which batches have already been sent.<br><br>' +
-        'Rows are matched by position: FROM row 1 attacks TO row 1, FROM row 2 attacks TO row 2, and so on. A FROM village can appear more than once to attack several targets.<br><br>' +
-        '<b>Example:</b><br>' +
-        '<code style="display:block;background:#0a0a0a;padding:8px;border-radius:4px;margin:6px 0;font-size:12px;line-height:1.8;">' +
-        'FROM &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;TO<br>' +
-        '531|537 → 534|534 &nbsp;(tab 1)<br>' +
-        '531|537 → 537|536 &nbsp;(tab 2)<br>' +
-        '539|544 → 534|534 &nbsp;(tab 3)' +
-        '</code>' +
-        'Check <i>Randomize pairings</i> to shuffle which FROM village is paired with which TO target on each Generate Tabs click.<br><br>' +
+        'Rows are matched by position: FROM row 1 attacks TO row 1, FROM row 2 attacks TO row 2, and so on. If there are more FROM rows than TO rows, extra FROM villages are unused by default.<br><br>' +
+        '<b>Repeat TO targets</b><br>' +
+        'When checked, the TO list wraps around so extra FROM villages are not wasted — FROM row 4 attacks TO row 1 again, FROM row 5 attacks TO row 2, and so on.<br><br>' +
+        '<b>Randomize pairings</b><br>' +
+        'Shuffles the FROM order before pairing on each <i>Generate Tabs</i> click, so different FROM villages get different TO targets each run.<br><br>' +
         'All coordinates are validated against local village data — invalid entries are skipped and reported.');
     } else {
       showHelp('Rally Point Opener — Advanced',
@@ -1091,15 +1085,15 @@
       '<b>How to use</b><br>' +
       '1. Optionally create or select a unit template to pre-fill troop counts.<br>' +
       '2. Enter FROM and TO coordinates (one per line) in the <b>Rally Point Opener</b> section.<br>' +
-      '3. Optionally check <i>Randomize pairings</i> (available in both Simple and Advanced modes).<br>' +
+      '3. Optionally check <i>Randomize pairings</i> or <i>Repeat TO targets</i> (available in both modes).<br>' +
       '4. Click <i>Generate Tabs</i>. Range buttons appear below (e.g. <b>1–20</b>, <b>21–30</b>). Click a button to open that batch — it greys out after use.<br>' +
-      '5. Switch to <b>Advanced</b> mode for Premium options: <i>Use current group</i>, <i>Repeat TO targets</i>, <i>Fake Mode</i>, and <i>Max attacks per FROM village</i>.<br>' +
+      '5. Switch to <b>Advanced</b> mode for Premium options: <i>Use current group</i>, <i>Fake Mode</i>, and <i>Max attacks per FROM village</i>.<br>' +
       '6. Or paste an attack plan and click a wave button to open all attacks in a wave at once.<br><br>' +
       'Village data is fetched on script load if no data exists or the cache is over 1 hour old.<br><br>' +
       '<b>Premium requirements</b><br>' +
       'The following features require a <b>Premium Account</b>:<br>' +
-      '— Unit templates (reads unit counts from the Combined Village Overview)<br>' +
-      '— Advanced mode: Fake Mode and Use current group<br><br>' +
+      '— Unit templates and Fake Mode (read unit counts from the Combined Village Overview)<br>' +
+      '— Advanced mode: Use current group<br><br>' +
       '<b>Popups blocked?</b><br>' +
       'After clicking a range button, look for the popup blocked icon in your browser\'s address bar, click it, and choose <i>Always allow popups from this site</i>. Then try again.');
   });
@@ -1282,12 +1276,6 @@
     showMessage('TO template "' + name + '" saved');
   };
 
-  // Test data
-  btnTestData.onclick = function loadTestData() {
-    fromTextarea.value = '531|537\n531|537';
-    toTextarea.value   = '534|534\n537|536';
-    showMessage('Test data loaded');
-  };
 
   // Paste Attack Plan
   btnPasteAttackPlan.onclick = function pasteAttackPlan() {
