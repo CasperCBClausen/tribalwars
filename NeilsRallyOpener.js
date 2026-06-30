@@ -319,7 +319,6 @@
       let totalSendable = 0;
       for (const unitType in config) {
         const required = config[unitType];
-        if (!required) continue;
         const available = availableUnits[unitType] || 0;
         const effectiveAvailable = Math.max(0, available - (res[unitType] || 0));
         totalSendable += Math.max(0, effectiveAvailable - required);
@@ -892,8 +891,8 @@
     const inputs = isSend ? unitInputs : keepUnitInputs;
     UNIT_TYPES.forEach(u => {
       const val = template.units[u];
-      inputs[u].value = val || '';
-      setUnitActive(u, !!val);
+      inputs[u].value = val !== undefined ? (val || '') : '';
+      setUnitActive(u, val !== undefined);
     });
   }
 
@@ -905,7 +904,12 @@
     UNIT_TYPES.forEach(u => {
       if (!unitActiveState[u]) return;
       const v = inputs[u].value.trim();
-      if (v && v !== '0') units[u] = parseInt(v);
+      const num = parseInt(v) || 0;
+      if (mode === 'keep') {
+        units[u] = num;        // save 0 too — means "keep 0, send all of this unit"
+      } else {
+        if (num > 0) units[u] = num;
+      }
     });
     unitTemplates[currentTemplate] = { mode, units };
     saveTemplates();
@@ -1001,9 +1005,11 @@
     e.stopPropagation();
     showHelp('Unit Templates',
       'Define unit compositions to auto-fill when opening rally tabs.<br><br>' +
-      '<b>Send mode:</b> sends exactly the number specified per attack.<br>' +
-      '<b>Keep mode:</b> keeps that many troops home and sends the rest.<br><br>' +
-      'Select a template before clicking <i>Generate Tabs</i> to apply it. Enable <i>Fake Mode</i> to automatically skip attacks where a village lacks sufficient units.');
+      '<b>Activating units</b><br>' +
+      'Click a unit icon to toggle it on or off. Only active (highlighted) units are included in the template. Inactive units are never sent, regardless of mode.<br><br>' +
+      '<b>Send mode:</b> sends exactly the specified number of each active unit per attack.<br>' +
+      '<b>Keep mode:</b> keeps the specified number home and sends the rest. Active units with no value set (0) send everything available of that unit.<br><br>' +
+      'Select a template before clicking <i>Generate Tabs</i> to apply it. Enable <i>Fake Mode</i> in the Rally Opener to automatically skip villages that lack sufficient units.');
   });
 
   rallyHelpBtn.addEventListener('click', e => {
@@ -1196,6 +1202,7 @@
 
   // Generate Tabs
   btnGenerateTabs.onclick = function generateTabs() {
+    tabChunksContainer.innerHTML = '';
     const toCoords = parseCoordinateList(toTextarea.value);
     let fromCoords;
     if (useGroupCheckbox.checked) {
@@ -1216,8 +1223,6 @@
       randomize: randomizeCheckbox.checked,
     });
     if (!urls.length) return;
-
-    tabChunksContainer.innerHTML = '';
     const CHUNK = 20;
     for (let i = 0; i < urls.length; i += CHUNK) {
       const chunk = urls.slice(i, i + CHUNK);
