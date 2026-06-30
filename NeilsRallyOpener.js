@@ -654,7 +654,7 @@
     }
     unitIconEls[u] = lbl;
     unitActiveState[u] = false;
-    lbl.addEventListener('click', () => setUnitActive(u, !unitActiveState[u]));
+    lbl.addEventListener('click', () => { setUnitActive(u, !unitActiveState[u]); if (currentTemplate) saveCurrentTemplate(); });
     labelsRow.appendChild(lbl);
   });
   templateEditor.appendChild(labelsRow);
