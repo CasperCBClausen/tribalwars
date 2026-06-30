@@ -982,8 +982,13 @@
 
   // Collapse toggles
   const templatesHandler  = makeCollapseHandler(templatesContent,  templatesCollapseBtn);
-  const rallyHandler      = makeCollapseHandler(rallyContent,      rallyCollapseBtn);
   const attackPlanHandler = makeCollapseHandler(attackPlanContent, attackPlanCollapseBtn);
+  const rallyHandler = function() {
+    const collapsed = rallyContent.style.display === 'none';
+    rallyContent.style.display = collapsed ? 'block' : 'none';
+    rallyCollapseBtn.innerText = collapsed ? '−' : '+';
+    _rallyLeft.style.display = collapsed ? 'flex' : 'none';
+  };
   templatesCollapseBtn.onclick  = templatesHandler;  templatesSectionTitle.onclick  = templatesHandler;
   rallyCollapseBtn.onclick      = rallyHandler;      rallySectionTitle.onclick      = rallyHandler;
   attackPlanCollapseBtn.onclick = attackPlanHandler; attackPlanTitle.onclick        = attackPlanHandler;
@@ -1040,25 +1045,24 @@
         'All coordinates are validated against local village data — invalid entries are skipped and reported.');
     } else {
       showHelp('Rally Point Opener — Advanced',
-        'Switch between Simple and Advanced using the toggle in the section header. Advanced adds Premium-only options and changes the pairing strategy to round-robin distribution.<br><br>' +
         '<b>Use current group</b><br>' +
-        'Replaces the FROM textarea with every village in your currently active in-game group. Villages are distributed round-robin across the TO targets.<br><br>' +
+        'Replaces the FROM textarea with every village in your currently active in-game group, distributed round-robin across the TO targets.<br><br>' +
+        '<b>Repeat TO targets</b><br>' +
+        'By default each TO coordinate receives at most one attacker. Enable this to allow multiple FROM villages to hit the same TO — useful when you have more FROM villages than TO targets.<br>' +
+        'Hidden when Fake Mode is on, as Fake Mode always allows repeat targeting (villages that fail the unit check are skipped, so extras are needed for full coverage).<br><br>' +
         '<b>Fake Mode</b><br>' +
-        'Reads available units from the Combined Village Overview before generating tabs. Villages that cannot meet the template are skipped.<br>' +
-        'Use <i>Keep home (reserves)</i> to reserve a minimum number of each unit type before checking.<br><br>' +
+        'Reads available units from the Combined Village Overview before generating tabs. Villages that cannot meet the selected unit template are skipped.<br>' +
+        'Use <i>Keep home (reserves)</i> to set a minimum number of each unit to keep at home before checking.<br><br>' +
         '<b>Max attacks per FROM village</b> (shown when Fake Mode is on)<br>' +
-        'Sets how many TO targets each FROM village is assigned. Default is 1.<br>' +
-        'With 10 FROM villages, 5 TO targets, and max = 1: each village gets one target, so each target receives 2 attackers.<br>' +
-        'With max = 2: each village is assigned 2 targets, giving up to 4 attackers per target before Fake Mode filters by unit availability.<br><br>' +
-        '<b>Randomize pairings</b><br>' +
-        'Also available in Simple mode. Shuffles the FROM→TO assignment on every <i>Generate Tabs</i> click for varied results.<br><br>' +
+        'How many TO targets each FROM village is assigned. Default is 1.<br>' +
+        'With 10 FROM and 5 TO at max = 2: each village targets 2 different TOs — Fake Mode then filters out villages that lack sufficient units.<br><br>' +
         '<b>Example — 3 FROM villages, 2 TO targets, max = 1, Template: 100 LC</b><br>' +
         '<code style="display:block;background:#0a0a0a;padding:8px;border-radius:4px;margin:6px 0;font-size:12px;line-height:1.8;">' +
-        'Round-robin pairing: V1→T1, V2→T2, V3→T1<br><br>' +
+        'Round-robin: V1→T1, V2→T2, V3→T1<br><br>' +
         'V1: 120 LC → passes → tab opened<br>' +
         'V2: 80 LC &nbsp;→ fails &nbsp;→ skipped<br>' +
         'V3: 150 LC → passes → tab opened<br>' +
-        'Result: T1 gets 2 tabs, T2 gets 0' +
+        'Result: T1 receives 2 attacks, T2 receives 0' +
         '</code>');
     }
   });
@@ -1089,7 +1093,7 @@
       '2. Enter FROM and TO coordinates (one per line) in the <b>Rally Point Opener</b> section.<br>' +
       '3. Optionally check <i>Randomize pairings</i> (available in both Simple and Advanced modes).<br>' +
       '4. Click <i>Generate Tabs</i>. Range buttons appear below (e.g. <b>1–20</b>, <b>21–30</b>). Click a button to open that batch — it greys out after use.<br>' +
-      '5. Switch to <b>Advanced</b> mode via the toggle in the section header for Premium options: <i>Use current group</i>, <i>Fake Mode</i>, and <i>Max attacks per FROM village</i>.<br>' +
+      '5. Switch to <b>Advanced</b> mode for Premium options: <i>Use current group</i>, <i>Repeat TO targets</i>, <i>Fake Mode</i>, and <i>Max attacks per FROM village</i>.<br>' +
       '6. Or paste an attack plan and click a wave button to open all attacks in a wave at once.<br><br>' +
       'Village data is fetched on script load if no data exists or the cache is over 1 hour old.<br><br>' +
       '<b>Premium requirements</b><br>' +
@@ -1125,11 +1129,12 @@
   msgHistoryCloseBtn.addEventListener('click', () => { msgHistoryOverlay.style.display = 'none'; });
   msgHistoryOverlay.addEventListener('click', e => { if (e.target === msgHistoryOverlay) msgHistoryOverlay.style.display = 'none'; });
 
-  // Fake Mode toggle — show/hide reserves panel and max attacks row
+  // Fake Mode toggle — show/hide reserves panel, max attacks row, and multi-target checkbox
   fakeModeCheckbox.addEventListener('change', () => {
     const on = fakeModeCheckbox.checked;
-    fakeReservesRow.style.display = on ? 'block' : 'none';
-    maxAttacksRow.style.display   = on ? 'flex'  : 'none';
+    fakeReservesRow.style.display    = on ? 'block' : 'none';
+    maxAttacksRow.style.display      = on ? 'flex'  : 'none';
+    multiTargetWrapper.style.display = on ? 'none'  : 'flex';
   });
 
   // Fake reserves persistence
@@ -1231,7 +1236,7 @@
       advancedMode: isAdvancedMode,
       maxPerVillage,
       randomize: randomizeCheckbox.checked,
-      multiTarget: multiTargetCheckbox.checked,
+      multiTarget: multiTargetCheckbox.checked || fakeModeCheckbox.checked,
     });
     if (!urls.length) return;
     const CHUNK = 20;
