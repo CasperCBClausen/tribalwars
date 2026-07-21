@@ -339,15 +339,16 @@
     saveBtn.textContent = 'Save to JSON';
   }
 
-  // One JSON object per line (NDJSON) rather than a single array.
-  function toNdjson(results) {
-    return results.map(r => JSON.stringify(r)).join('\n');
+  // A valid JSON array, but with each report on its own line for readability.
+  function toJsonLines(results) {
+    if (!results.length) return '[]';
+    return '[\n' + results.map(r => JSON.stringify(r)).join(',\n') + '\n]';
   }
 
   function copyToClipboard(results, failed) {
     if (!results.length) { statusEl.textContent = 'No reports copied.'; return; }
 
-    const json = toNdjson(results);
+    const json = toJsonLines(results);
     console.log('=== Neils Reports To Clipboard ===');
     console.log(`${results.length} report(s), ${failed} failed`);
     console.log(json);
@@ -363,7 +364,7 @@
   async function saveToFile(results, failed, fileHandle) {
     if (!results.length) { statusEl.textContent = 'No reports saved.'; return; }
 
-    const json = toNdjson(results);
+    const json = toJsonLines(results);
     console.log('=== Neils Reports To Clipboard ===');
     console.log(`${results.length} report(s), ${failed} failed`);
 
