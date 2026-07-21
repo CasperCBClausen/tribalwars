@@ -209,6 +209,9 @@
       <div>
         <button id="nrc_copyBtn" type="button" style="padding:6px 12px;background:#7d510f;color:#fff;border:none;border-radius:4px;cursor:pointer;">Copy Selected</button>
         <button id="nrc_saveBtn" type="button" style="padding:6px 12px;background:#7d510f;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-left:5px;">Save to JSON</button>
+        <label id="nrc_saveAsLabel" style="font-size:11px;color:#666;cursor:pointer;margin-left:6px;">
+          <input type="checkbox" id="nrc_saveAsCheckbox" style="vertical-align:middle;"> Save As dialog
+        </label>
         <button id="nrc_stopBtn" type="button" style="padding:6px 12px;background:#dc3545;color:#fff;border:none;border-radius:4px;cursor:pointer;display:none;margin-left:5px;">Stop</button>
       </div>
     </div>
@@ -220,7 +223,18 @@
   const statusEl = panel.querySelector('#nrc_status');
   const copyBtn = panel.querySelector('#nrc_copyBtn');
   const saveBtn = panel.querySelector('#nrc_saveBtn');
+  const saveAsCheckbox = panel.querySelector('#nrc_saveAsCheckbox');
   const stopBtn = panel.querySelector('#nrc_stopBtn');
+
+  const supportsSaveAs = typeof window.showSaveFilePicker === 'function';
+  if (!supportsSaveAs) {
+    saveAsCheckbox.disabled = true;
+    panel.querySelector('#nrc_saveAsLabel').title = 'Not supported in this browser';
+  }
+
+  function timestamp() {
+    return new Date().toISOString().replace(/[:.]/g, '-');
+  }
 
   function refreshCount() {
     countEl.textContent = `${getCheckedLinks().length} selected`;
@@ -298,19 +312,30 @@
     });
   }
 
-  function saveToFile(results, failed) {
+  async function saveToFile(results, failed, fileHandle) {
     if (!results.length) { statusEl.textContent = 'No reports saved.'; return; }
 
     const json = toNdjson(results);
     console.log('=== Neils Reports To Clipboard ===');
     console.log(`${results.length} report(s), ${failed} failed`);
 
+    if (fileHandle) {
+      try {
+        const writable = await fileHandle.createWritable();
+        await writable.write(json);
+        await writable.close();
+        statusEl.textContent = `Saved ${results.length} report${results.length !== 1 ? 's' : ''} to file${failed ? ` (${failed} failed)` : ''}.`;
+        return;
+      } catch (e) {
+        console.error('Save As write failed, falling back to automatic download:', e);
+      }
+    }
+
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     a.href = url;
-    a.download = `tw-reports-${stamp}.json`;
+    a.download = `tw-reports-${timestamp()}.json`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -319,13 +344,37 @@
     statusEl.textContent = `Saved ${results.length} report${results.length !== 1 ? 's' : ''} to file${failed ? ` (${failed} failed)` : ''}.`;
   }
 
-  async function runBatch(activeBtn, outputFn) {
+  const SAVE_AS_CANCELLED = Symbol('save-as-cancelled');
+
+  // Must run before any await in the click handler so the picker still has user activation.
+  async function prepareSaveAs() {
+    if (!saveAsCheckbox.checked || !supportsSaveAs) return null;
+    try {
+      return await window.showSaveFilePicker({
+        suggestedName: `tw-reports-${timestamp()}.json`,
+        types: [{ description: 'JSON file', accept: { 'application/json': ['.json'] } }]
+      });
+    } catch (e) {
+      if (e.name === 'AbortError') return SAVE_AS_CANCELLED;
+      console.error('Save As picker failed, falling back to automatic download:', e);
+      return null;
+    }
+  }
+
+  async function runBatch(activeBtn, prepare, outputFn) {
     if (processing) return;
     const links = getCheckedLinks();
     if (!links.length) {
       alert('No reports selected. Check the boxes next to the reports you want first.');
       return;
     }
+
+    let context = null;
+    if (prepare) {
+      context = await prepare();
+      if (context === SAVE_AS_CANCELLED) return;
+    }
+
     copyBtn.disabled = true;
     saveBtn.disabled = true;
     activeBtn.textContent = 'Processing...';
@@ -335,11 +384,11 @@
 
     const { results, failed } = await fetchAndParse(links);
     resetButtons();
-    outputFn(results, failed);
+    await outputFn(results, failed, context);
   }
 
-  copyBtn.onclick = () => runBatch(copyBtn, copyToClipboard);
-  saveBtn.onclick = () => runBatch(saveBtn, saveToFile);
+  copyBtn.onclick = () => runBatch(copyBtn, null, copyToClipboard);
+  saveBtn.onclick = () => runBatch(saveBtn, prepareSaveAs, saveToFile);
 
   stopBtn.onclick = () => {
     processing = false;
