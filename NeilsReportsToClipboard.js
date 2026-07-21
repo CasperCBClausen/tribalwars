@@ -176,7 +176,13 @@
   // ── Page guard ──────────────────────────────────────────────────────────
   const reportList = document.getElementById('report_list');
   if (!reportList) {
-    alert('Neils Reports To Clipboard must be run from the Reports Overview page.');
+    if (confirm("Neil's Reports To Clipboard must be run from the Reports Overview page.\n\nWould you like to be redirected there now?")) {
+      try {
+        window.location.href = window.location.origin + window.location.pathname + '?screen=report';
+      } catch (e) {
+        alert('Could not redirect. Please navigate to the Reports overview page.');
+      }
+    }
     return;
   }
 
@@ -270,15 +276,37 @@
     }
   });
 
-  helpBtn.onclick = () => {
-    alert(
-      "Neil's Reports To Clipboard\n\n" +
-      'Reads the reports you check below, fetches each one, and extracts the battle ' +
-      'data (troops, losses, resources, morale, luck, etc.) into JSON — one report per ' +
-      'line — which you can copy to the clipboard or save to a file.\n\n' +
-      'Reports other than Attack and Defense reports are disregarded, even if checked.'
-    );
-  };
+  // ── Help overlay ───────────────────────────────────────────────────────
+  const existingHelp = document.getElementById('nrc_help_overlay');
+  if (existingHelp) existingHelp.remove();
+
+  const helpOverlay = document.createElement('div');
+  helpOverlay.id = 'nrc_help_overlay';
+  helpOverlay.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:200000;display:none;align-items:center;justify-content:center;';
+  helpOverlay.innerHTML = `
+    <div style="background:#1a1a1a;color:#fff;padding:24px;border-radius:8px;border:2px solid #444;max-width:420px;width:90%;font-family:Arial,Helvetica,sans-serif;">
+      <div style="font-size:16px;font-weight:bold;margin-bottom:12px;color:#e0e0e0;">Neil's Reports To Clipboard</div>
+      <div style="font-size:13px;color:#bbb;line-height:1.7;margin-bottom:16px;">
+        Reads the reports you check below, fetches each one, and extracts the battle data
+        (troops, losses, resources, morale, luck, etc.) into JSON &mdash; one report per line
+        &mdash; which you can copy to the clipboard or save to a file.
+        <br><br>
+        Reports other than <b>Attack</b> and <b>Defense</b> reports are disregarded, even if checked.
+      </div>
+      <div style="display:flex;justify-content:center;">
+        <button id="nrc_helpCloseBtn" type="button" style="cursor:pointer;padding:8px 24px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;">Close</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(helpOverlay);
+
+  const helpCloseBtn = helpOverlay.querySelector('#nrc_helpCloseBtn');
+  helpCloseBtn.onclick = () => { helpOverlay.style.display = 'none'; };
+  helpOverlay.addEventListener('click', e => {
+    if (e.target === helpOverlay) helpOverlay.style.display = 'none';
+  });
+
+  helpBtn.onclick = () => { helpOverlay.style.display = 'flex'; };
 
   function timestamp() {
     return new Date().toISOString().replace(/[:.]/g, '-');
