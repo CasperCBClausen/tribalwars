@@ -238,10 +238,7 @@
       <button id="nrc_saveBtn" type="button" style="padding:6px 12px;background:#7d510f;color:#fff;border:none;border-radius:4px;cursor:pointer;">Save to JSON</button>
       <button id="nrc_stopBtn" type="button" style="padding:6px 12px;background:#dc3545;color:#fff;border:none;border-radius:4px;cursor:pointer;display:none;">Stop</button>
     </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-      <div id="nrc_status" style="font-size:12px;color:#666;flex:1;"></div>
-      <button id="nrc_historyBtn" type="button" title="View message history" style="cursor:pointer;padding:2px 8px;background:transparent;color:#7d510f;border:1px solid #7d510f;border-radius:3px;font-size:11px;line-height:1.5;white-space:nowrap;">🕘 History</button>
-    </div>
+    <div id="nrc_status" title="Click to view message history" style="font-size:12px;color:#666;cursor:pointer;box-sizing:border-box;width:100%;padding:6px 10px;background:#fff8ec;border:1px solid #7d510f;border-radius:4px;"></div>
     <div style="text-align:right;font-size:10px;color:#a89066;margin-top:6px;">Created by NeilB</div>
     <div id="nrc_settingsPanel" style="display:none;position:absolute;right:5px;top:34px;background:#fff8ec;border:1px solid #7d510f;border-radius:4px;padding:10px 12px;box-shadow:0 4px 10px rgba(0,0,0,0.3);z-index:10;">
       <label id="nrc_saveAsLabel" style="display:flex;align-items:center;gap:6px;font-size:12px;color:#333;cursor:pointer;white-space:nowrap;">
@@ -253,7 +250,6 @@
 
   const countEl = panel.querySelector('#nrc_count');
   const statusEl = panel.querySelector('#nrc_status');
-  const historyBtn = panel.querySelector('#nrc_historyBtn');
   const helpBtn = panel.querySelector('#nrc_helpBtn');
   const copyBtn = panel.querySelector('#nrc_copyBtn');
   const saveBtn = panel.querySelector('#nrc_saveBtn');
@@ -361,7 +357,7 @@
     statusEl.textContent = msg;
   }
 
-  historyBtn.addEventListener('click', () => {
+  statusEl.addEventListener('click', () => {
     msgHistoryList.innerHTML = messageHistory.length === 0
       ? '<div style="color:#888;padding:8px;">No messages yet</div>'
       : messageHistory.slice().reverse().map(e => {
