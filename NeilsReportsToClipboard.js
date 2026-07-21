@@ -180,11 +180,16 @@
     return;
   }
 
+  // Attack/defense reports carry an attack-size icon; scout/trade/system rows don't.
+  function isCombatRow(row) {
+    return !!row.querySelector('img[src*="attack_small.webp"], img[src*="attack_medium.webp"], img[src*="attack_large.webp"]');
+  }
+
   function getCheckedLinks() {
     const links = [];
     reportList.querySelectorAll('tbody tr').forEach(row => {
       const checkbox = row.querySelector('input[type="checkbox"][name^="id_"]');
-      if (!checkbox || !checkbox.checked) return;
+      if (!checkbox || !checkbox.checked || !isCombatRow(row)) return;
       const link = row.querySelector('a.report-link[href*="view="]');
       if (!link) return;
       const reportId = link.dataset.id || (link.href.match(/view=(\d+)/) || [])[1];
@@ -199,38 +204,79 @@
 
   const panel = document.createElement('div');
   panel.id = 'neils_reports_clipboard_ui';
-  panel.style.cssText = 'background:#f4e4bc;border:2px solid #7d510f;padding:15px;margin-bottom:15px;border-radius:5px;font-family:Arial,Helvetica,sans-serif;';
+  panel.style.cssText = 'position:relative;background:#f4e4bc;border:2px solid #7d510f;padding:15px;margin-bottom:15px;border-radius:5px;font-family:Arial,Helvetica,sans-serif;';
   panel.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
       <div>
         <strong style="color:#7d510f;font-size:16px;">Reports To Clipboard</strong>
+        <button id="nrc_helpBtn" type="button" title="Help" style="cursor:pointer;padding:1px 7px;background:#1a2a1a;color:#3a3;border:1px solid #2a4a2a;border-radius:3px;font-size:12px;font-weight:bold;line-height:1.4;margin-left:6px;">?</button>
         <span id="nrc_count" style="color:#666;margin-left:10px;font-size:12px;"></span>
       </div>
       <div>
         <button id="nrc_copyBtn" type="button" style="padding:6px 12px;background:#7d510f;color:#fff;border:none;border-radius:4px;cursor:pointer;">Copy Selected</button>
         <button id="nrc_saveBtn" type="button" style="padding:6px 12px;background:#7d510f;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-left:5px;">Save to JSON</button>
-        <label id="nrc_saveAsLabel" style="font-size:11px;color:#666;cursor:pointer;margin-left:6px;">
-          <input type="checkbox" id="nrc_saveAsCheckbox" style="vertical-align:middle;"> Save As dialog
-        </label>
+        <button id="nrc_settingsBtn" type="button" title="Settings" style="cursor:pointer;padding:5px 9px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:4px;font-size:13px;margin-left:5px;">⚙</button>
         <button id="nrc_stopBtn" type="button" style="padding:6px 12px;background:#dc3545;color:#fff;border:none;border-radius:4px;cursor:pointer;display:none;margin-left:5px;">Stop</button>
       </div>
     </div>
     <div id="nrc_status" style="font-size:12px;color:#666;">Check reports below, then click Copy Selected or Save to JSON.</div>
+    <div style="text-align:right;font-size:10px;color:#a89066;margin-top:6px;">by NeilB</div>
+    <div id="nrc_settingsPanel" style="display:none;position:absolute;right:15px;top:48px;background:#fff8ec;border:1px solid #7d510f;border-radius:4px;padding:10px 12px;box-shadow:0 4px 10px rgba(0,0,0,0.3);z-index:10;">
+      <label id="nrc_saveAsLabel" style="display:flex;align-items:center;gap:6px;font-size:12px;color:#333;cursor:pointer;white-space:nowrap;">
+        <input type="checkbox" id="nrc_saveAsCheckbox"> Use "Save As..." dialog
+      </label>
+    </div>
   `;
   reportList.parentNode.insertBefore(panel, reportList);
 
   const countEl = panel.querySelector('#nrc_count');
   const statusEl = panel.querySelector('#nrc_status');
+  const helpBtn = panel.querySelector('#nrc_helpBtn');
   const copyBtn = panel.querySelector('#nrc_copyBtn');
   const saveBtn = panel.querySelector('#nrc_saveBtn');
+  const settingsBtn = panel.querySelector('#nrc_settingsBtn');
+  const settingsPanel = panel.querySelector('#nrc_settingsPanel');
   const saveAsCheckbox = panel.querySelector('#nrc_saveAsCheckbox');
   const stopBtn = panel.querySelector('#nrc_stopBtn');
+
+  const SETTINGS_KEY = 'nrc_settings';
+  function loadSettings() {
+    try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function saveSettings(patch) {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...loadSettings(), ...patch })); } catch (e) {}
+  }
+
+  saveAsCheckbox.checked = !!loadSettings().useSaveAsDialog;
+  saveAsCheckbox.addEventListener('change', () => {
+    saveSettings({ useSaveAsDialog: saveAsCheckbox.checked });
+  });
 
   const supportsSaveAs = typeof window.showSaveFilePicker === 'function';
   if (!supportsSaveAs) {
     saveAsCheckbox.disabled = true;
     panel.querySelector('#nrc_saveAsLabel').title = 'Not supported in this browser';
   }
+
+  settingsBtn.onclick = e => {
+    e.stopPropagation();
+    settingsPanel.style.display = settingsPanel.style.display === 'none' ? 'block' : 'none';
+  };
+  document.addEventListener('click', e => {
+    if (settingsPanel.style.display !== 'none' && !settingsPanel.contains(e.target) && e.target !== settingsBtn) {
+      settingsPanel.style.display = 'none';
+    }
+  });
+
+  helpBtn.onclick = () => {
+    alert(
+      "Neil's Reports To Clipboard\n\n" +
+      'Reads the reports you check below, fetches each one, and extracts the battle ' +
+      'data (troops, losses, resources, morale, luck, etc.) into JSON — one report per ' +
+      'line — which you can copy to the clipboard or save to a file.\n\n' +
+      'Reports other than Attack and Defense reports are disregarded, even if checked.'
+    );
+  };
 
   function timestamp() {
     return new Date().toISOString().replace(/[:.]/g, '-');
