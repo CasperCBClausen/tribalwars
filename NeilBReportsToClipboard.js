@@ -43,8 +43,8 @@
   }
 
   /* ── Report Parser ── */
-  // Same field extraction as NeilsReportToJson.js, parameterized on a Document
-  // so it can run against fetch()-ed report pages instead of only window.document.
+  // Parameterized on a Document so it can run against fetch()-ed report pages
+  // instead of only window.document.
 
   function parseParticipant(doc, r, tblId, unitTblId, pfx) {
     const tbl = doc.getElementById(tblId);
@@ -184,7 +184,7 @@
 
   const reportList = document.getElementById('report_list');
   if (!reportList) {
-    if (confirm("Neil's Reports To Clipboard must be run from the Reports Overview page.\n\nWould you like to be redirected there now?")) {
+    if (confirm('Reports To Clipboard must be run from the Reports Overview page.\n\nWould you like to be redirected there now?')) {
       try {
         window.location.href = window.location.origin + window.location.pathname + '?screen=report';
       } catch (e) {
@@ -238,8 +238,8 @@
       <button id="nrc_saveBtn" type="button" style="padding:6px 12px;background:#7d510f;color:#fff;border:none;border-radius:4px;cursor:pointer;">Save to JSON</button>
       <button id="nrc_stopBtn" type="button" style="padding:6px 12px;background:#dc3545;color:#fff;border:none;border-radius:4px;cursor:pointer;display:none;">Stop</button>
     </div>
-    <div id="nrc_status" style="font-size:12px;color:#666;">Check reports below, then click Copy Selected or Save to JSON.</div>
-    <div style="text-align:right;font-size:10px;color:#a89066;margin-top:6px;">by NeilB</div>
+    <div id="nrc_status" style="font-size:12px;color:#666;cursor:pointer;" title="Click to view message history"></div>
+    <div style="text-align:right;font-size:10px;color:#a89066;margin-top:6px;">Created by NeilB</div>
     <div id="nrc_settingsPanel" style="display:none;position:absolute;right:5px;top:34px;background:#fff8ec;border:1px solid #7d510f;border-radius:4px;padding:10px 12px;box-shadow:0 4px 10px rgba(0,0,0,0.3);z-index:10;">
       <label id="nrc_saveAsLabel" style="display:flex;align-items:center;gap:6px;font-size:12px;color:#333;cursor:pointer;white-space:nowrap;">
         <input type="checkbox" id="nrc_saveAsCheckbox"> Use "Save As..." dialog
@@ -299,7 +299,7 @@
   helpOverlay.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:200000;display:none;align-items:center;justify-content:center;';
   helpOverlay.innerHTML = `
     <div style="background:#1a1a1a;color:#fff;padding:24px;border-radius:8px;border:2px solid #444;max-width:420px;width:90%;font-family:Arial,Helvetica,sans-serif;">
-      <div style="font-size:16px;font-weight:bold;margin-bottom:12px;color:#e0e0e0;">Neil's Reports To Clipboard</div>
+      <div style="font-size:16px;font-weight:bold;margin-bottom:12px;color:#e0e0e0;">Reports To Clipboard</div>
       <div style="font-size:13px;color:#bbb;line-height:1.7;margin-bottom:16px;">
         Reads the reports you check below, fetches each one, and extracts the battle data
         (troops, losses, resources, morale, luck, etc.) into JSON &mdash; one report per line
@@ -321,6 +321,56 @@
   });
 
   helpBtn.onclick = () => { helpOverlay.style.display = 'flex'; };
+
+  /* ── Message History Overlay ── */
+
+  const existingMsgHistory = document.getElementById('nrc_msg_history_overlay');
+  if (existingMsgHistory) existingMsgHistory.remove();
+
+  const msgHistoryOverlay = document.createElement('div');
+  msgHistoryOverlay.id = 'nrc_msg_history_overlay';
+  msgHistoryOverlay.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:200000;display:none;align-items:center;justify-content:center;';
+  msgHistoryOverlay.innerHTML = `
+    <div style="background:#1a1a1a;color:#fff;padding:20px;border-radius:8px;border:2px solid #444;max-width:480px;width:90%;max-height:60vh;display:flex;flex-direction:column;font-family:Arial,Helvetica,sans-serif;">
+      <div style="font-size:16px;font-weight:bold;margin-bottom:12px;color:#e0e0e0;flex-shrink:0;">Message History</div>
+      <div id="nrc_msgHistoryList" style="overflow-y:auto;flex:1;"></div>
+      <div style="display:flex;justify-content:center;margin-top:12px;flex-shrink:0;">
+        <button id="nrc_msgHistoryCloseBtn" type="button" style="cursor:pointer;padding:8px 24px;background:#444;color:#fff;border:1px solid #666;border-radius:4px;">Close</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(msgHistoryOverlay);
+
+  const msgHistoryList = msgHistoryOverlay.querySelector('#nrc_msgHistoryList');
+  const msgHistoryCloseBtn = msgHistoryOverlay.querySelector('#nrc_msgHistoryCloseBtn');
+  msgHistoryCloseBtn.onclick = () => { msgHistoryOverlay.style.display = 'none'; };
+  msgHistoryOverlay.addEventListener('click', e => {
+    if (e.target === msgHistoryOverlay) msgHistoryOverlay.style.display = 'none';
+  });
+
+  /* ── Message System ── */
+
+  const messageHistory = [];
+
+  function showMessage(msg) {
+    messageHistory.push({ text: msg, time: new Date() });
+    statusEl.textContent = msg;
+  }
+
+  statusEl.addEventListener('click', () => {
+    msgHistoryList.innerHTML = messageHistory.length === 0
+      ? '<div style="color:#888;padding:8px;">No messages yet</div>'
+      : messageHistory.slice().reverse().map(e => {
+          const t = e.time;
+          const ts = ('0' + t.getHours()).slice(-2) + ':' + ('0' + t.getMinutes()).slice(-2) + ':' + ('0' + t.getSeconds()).slice(-2);
+          return '<div style="padding:6px 4px;border-bottom:1px solid #2a2a2a;font-size:12px;">' +
+            '<span style="color:#555;margin-right:8px;">' + ts + '</span>' +
+            '<span style="color:#ddd;">' + e.text + '</span></div>';
+        }).join('');
+    msgHistoryOverlay.style.display = 'flex';
+  });
+
+  showMessage('Check reports below, then click Copy Selected or Save to JSON.');
 
   /* ── Utilities ── */
 
@@ -347,7 +397,7 @@
 
     for (const link of links) {
       if (!processing) {
-        statusEl.textContent = `Stopped at ${done}/${links.length} (${failed} failed).`;
+        showMessage(`Stopped at ${done}/${links.length} (${failed} failed).`);
         break;
       }
 
@@ -366,7 +416,7 @@
       }
 
       done++;
-      statusEl.textContent = `Processing ${done}/${links.length} (${failed} failed)...`;
+      showMessage(`Processing ${done}/${links.length} (${failed} failed)...`);
 
       if (done < links.length && processing) {
         await new Promise(r => setTimeout(r, DELAY_MS));
@@ -394,26 +444,26 @@
   }
 
   function copyToClipboard(results, failed) {
-    if (!results.length) { statusEl.textContent = 'No reports copied.'; return; }
+    if (!results.length) { showMessage('No reports copied.'); return; }
 
     const json = toJsonLines(results);
-    console.log('=== Neils Reports To Clipboard ===');
+    console.log('=== Reports To Clipboard ===');
     console.log(`${results.length} report(s), ${failed} failed`);
     console.log(json);
 
     navigator.clipboard.writeText(json).then(() => {
-      statusEl.textContent = `Copied ${results.length} report${results.length !== 1 ? 's' : ''} to clipboard${failed ? ` (${failed} failed)` : ''}.`;
+      showMessage(`Copied ${results.length} report${results.length !== 1 ? 's' : ''} to clipboard${failed ? ` (${failed} failed)` : ''}.`);
     }).catch(() => {
-      statusEl.textContent = 'Done, but clipboard write failed — copy manually from the prompt.';
+      showMessage('Done, but clipboard write failed — copy manually from the prompt.');
       prompt('Clipboard blocked — copy manually:', json);
     });
   }
 
   async function saveToFile(results, failed, fileHandle) {
-    if (!results.length) { statusEl.textContent = 'No reports saved.'; return; }
+    if (!results.length) { showMessage('No reports saved.'); return; }
 
     const json = toJsonLines(results);
-    console.log('=== Neils Reports To Clipboard ===');
+    console.log('=== Reports To Clipboard ===');
     console.log(`${results.length} report(s), ${failed} failed`);
 
     if (fileHandle) {
@@ -421,7 +471,7 @@
         const writable = await fileHandle.createWritable();
         await writable.write(json);
         await writable.close();
-        statusEl.textContent = `Saved ${results.length} report${results.length !== 1 ? 's' : ''} to file${failed ? ` (${failed} failed)` : ''}.`;
+        showMessage(`Saved ${results.length} report${results.length !== 1 ? 's' : ''} to file${failed ? ` (${failed} failed)` : ''}.`);
         return;
       } catch (e) {
         console.error('Save As write failed, falling back to automatic download:', e);
@@ -438,7 +488,7 @@
     a.remove();
     URL.revokeObjectURL(url);
 
-    statusEl.textContent = `Saved ${results.length} report${results.length !== 1 ? 's' : ''} to file${failed ? ` (${failed} failed)` : ''}.`;
+    showMessage(`Saved ${results.length} report${results.length !== 1 ? 's' : ''} to file${failed ? ` (${failed} failed)` : ''}.`);
   }
 
   const SAVE_AS_CANCELLED = Symbol('save-as-cancelled');
@@ -495,5 +545,5 @@
     stopBtn.textContent = 'Stopping...';
   };
 
-  console.log('[Neils Reports To Clipboard] Ready. ' + getCheckedLinks().length + ' report(s) currently selected.');
+  console.log('[Reports To Clipboard] Ready. ' + getCheckedLinks().length + ' report(s) currently selected.');
 })();
