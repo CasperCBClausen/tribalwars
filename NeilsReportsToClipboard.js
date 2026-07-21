@@ -277,10 +277,15 @@
     saveBtn.textContent = 'Save to JSON';
   }
 
+  // One JSON object per line (NDJSON) rather than a single array.
+  function toNdjson(results) {
+    return results.map(r => JSON.stringify(r)).join('\n');
+  }
+
   function copyToClipboard(results, failed) {
     if (!results.length) { statusEl.textContent = 'No reports copied.'; return; }
 
-    const json = JSON.stringify(results);
+    const json = toNdjson(results);
     console.log('=== Neils Reports To Clipboard ===');
     console.log(`${results.length} report(s), ${failed} failed`);
     console.log(json);
@@ -296,7 +301,7 @@
   function saveToFile(results, failed) {
     if (!results.length) { statusEl.textContent = 'No reports saved.'; return; }
 
-    const json = JSON.stringify(results, null, 2);
+    const json = toNdjson(results);
     console.log('=== Neils Reports To Clipboard ===');
     console.log(`${results.length} report(s), ${failed} failed`);
 
