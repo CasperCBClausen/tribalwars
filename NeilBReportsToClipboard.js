@@ -1,10 +1,15 @@
-// Reports To Clipboard — batch export checked reports from the Reports Overview list
+// NeilBReportsToClipboard
 (function () {
+
+  /* ── Constants ── */
+
   const worldMatch = location.hostname.match(/^(\w+)\.tribalwars\./);
   const world = worldMatch ? worldMatch[1] : null;
 
   const MONTHS = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
   const DELAY_MS = 200; // 5 reports/second
+
+  /* ── Parsing Helpers ── */
 
   function parseTWDate(str) {
     const m = str.replace(/\s+/g,' ').trim()
@@ -36,6 +41,10 @@
     }
     return out;
   }
+
+  /* ── Report Parser ── */
+  // Same field extraction as NeilsReportToJson.js, parameterized on a Document
+  // so it can run against fetch()-ed report pages instead of only window.document.
 
   function parseParticipant(doc, r, tblId, unitTblId, pfx) {
     const tbl = doc.getElementById(tblId);
@@ -74,8 +83,6 @@
     }
   }
 
-  // Same field extraction as NeilsReportToJson.js, parameterized on a Document
-  // so it can run against fetch()-ed report pages instead of only window.document.
   function parseReportDoc(doc, reportId) {
     const r = {};
     if (world) r.world = world;
@@ -173,7 +180,8 @@
     return clean(r);
   }
 
-  // ── Page guard ──────────────────────────────────────────────────────────
+  /* ── Page Guard ── */
+
   const reportList = document.getElementById('report_list');
   if (!reportList) {
     if (confirm("Neil's Reports To Clipboard must be run from the Reports Overview page.\n\nWould you like to be redirected there now?")) {
@@ -185,6 +193,8 @@
     }
     return;
   }
+
+  /* ── Row Detection ── */
 
   // Attack/defense reports carry an attack-size icon; scout/trade/system rows don't.
   function isCombatRow(row) {
@@ -204,7 +214,8 @@
     return links;
   }
 
-  // ── UI ──────────────────────────────────────────────────────────────────
+  /* ── UI Build ── */
+
   const existing = document.getElementById('neils_reports_clipboard_ui');
   if (existing) existing.remove();
 
@@ -247,6 +258,8 @@
   const saveAsCheckbox = panel.querySelector('#nrc_saveAsCheckbox');
   const stopBtn = panel.querySelector('#nrc_stopBtn');
 
+  /* ── Settings ── */
+
   const SETTINGS_KEY = 'nrc_settings';
   function loadSettings() {
     try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch (e) { return {}; }
@@ -276,7 +289,8 @@
     }
   });
 
-  // ── Help overlay ───────────────────────────────────────────────────────
+  /* ── Help Overlay ── */
+
   const existingHelp = document.getElementById('nrc_help_overlay');
   if (existingHelp) existingHelp.remove();
 
@@ -308,6 +322,8 @@
 
   helpBtn.onclick = () => { helpOverlay.style.display = 'flex'; };
 
+  /* ── Utilities ── */
+
   function timestamp() {
     return new Date().toISOString().replace(/[:.]/g, '-');
   }
@@ -319,6 +335,8 @@
   reportList.addEventListener('change', e => {
     if (e.target.matches('input[type="checkbox"]')) refreshCount();
   });
+
+  /* ── Batch Processing ── */
 
   let processing = false;
 
@@ -366,6 +384,8 @@
     saveBtn.disabled = false;
     saveBtn.textContent = 'Save to JSON';
   }
+
+  /* ── Output (Clipboard / File) ── */
 
   // A valid JSON array, but with each report on its own line for readability.
   function toJsonLines(results) {
@@ -437,6 +457,8 @@
       return null;
     }
   }
+
+  /* ── Event Wiring ── */
 
   async function runBatch(activeBtn, prepare, outputFn) {
     if (processing) return;
