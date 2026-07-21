@@ -207,17 +207,19 @@
         <span id="nrc_count" style="color:#666;margin-left:10px;font-size:12px;"></span>
       </div>
       <div>
-        <button id="nrc_processBtn" type="button" style="padding:6px 12px;background:#7d510f;color:#fff;border:none;border-radius:4px;cursor:pointer;">Copy Selected</button>
+        <button id="nrc_copyBtn" type="button" style="padding:6px 12px;background:#7d510f;color:#fff;border:none;border-radius:4px;cursor:pointer;">Copy Selected</button>
+        <button id="nrc_saveBtn" type="button" style="padding:6px 12px;background:#7d510f;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-left:5px;">Save to JSON</button>
         <button id="nrc_stopBtn" type="button" style="padding:6px 12px;background:#dc3545;color:#fff;border:none;border-radius:4px;cursor:pointer;display:none;margin-left:5px;">Stop</button>
       </div>
     </div>
-    <div id="nrc_status" style="font-size:12px;color:#666;">Check reports above, then click Copy Selected.</div>
+    <div id="nrc_status" style="font-size:12px;color:#666;">Check reports below, then click Copy Selected or Save to JSON.</div>
   `;
   reportList.parentNode.insertBefore(panel, reportList);
 
   const countEl = panel.querySelector('#nrc_count');
   const statusEl = panel.querySelector('#nrc_status');
-  const processBtn = panel.querySelector('#nrc_processBtn');
+  const copyBtn = panel.querySelector('#nrc_copyBtn');
+  const saveBtn = panel.querySelector('#nrc_saveBtn');
   const stopBtn = panel.querySelector('#nrc_stopBtn');
 
   function refreshCount() {
@@ -230,7 +232,7 @@
 
   let processing = false;
 
-  async function processLinks(links) {
+  async function fetchAndParse(links) {
     processing = true;
     const results = [];
     let done = 0, failed = 0;
@@ -264,14 +266,19 @@
     }
 
     processing = false;
-    stopBtn.style.display = 'none';
-    processBtn.disabled = false;
-    processBtn.textContent = 'Copy Selected';
+    return { results, failed };
+  }
 
-    if (!results.length) {
-      statusEl.textContent = 'No reports copied.';
-      return;
-    }
+  function resetButtons() {
+    stopBtn.style.display = 'none';
+    copyBtn.disabled = false;
+    copyBtn.textContent = 'Copy Selected';
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save to JSON';
+  }
+
+  function copyToClipboard(results, failed) {
+    if (!results.length) { statusEl.textContent = 'No reports copied.'; return; }
 
     const json = JSON.stringify(results);
     console.log('=== Neils Reports To Clipboard ===');
@@ -286,20 +293,48 @@
     });
   }
 
-  processBtn.onclick = async () => {
+  function saveToFile(results, failed) {
+    if (!results.length) { statusEl.textContent = 'No reports saved.'; return; }
+
+    const json = JSON.stringify(results, null, 2);
+    console.log('=== Neils Reports To Clipboard ===');
+    console.log(`${results.length} report(s), ${failed} failed`);
+
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    a.href = url;
+    a.download = `tw-reports-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    statusEl.textContent = `Saved ${results.length} report${results.length !== 1 ? 's' : ''} to file${failed ? ` (${failed} failed)` : ''}.`;
+  }
+
+  async function runBatch(activeBtn, outputFn) {
     if (processing) return;
     const links = getCheckedLinks();
     if (!links.length) {
       alert('No reports selected. Check the boxes next to the reports you want first.');
       return;
     }
-    processBtn.disabled = true;
-    processBtn.textContent = 'Processing...';
+    copyBtn.disabled = true;
+    saveBtn.disabled = true;
+    activeBtn.textContent = 'Processing...';
     stopBtn.style.display = 'inline-block';
     stopBtn.disabled = false;
     stopBtn.textContent = 'Stop';
-    await processLinks(links);
-  };
+
+    const { results, failed } = await fetchAndParse(links);
+    resetButtons();
+    outputFn(results, failed);
+  }
+
+  copyBtn.onclick = () => runBatch(copyBtn, copyToClipboard);
+  saveBtn.onclick = () => runBatch(saveBtn, saveToFile);
 
   stopBtn.onclick = () => {
     processing = false;
