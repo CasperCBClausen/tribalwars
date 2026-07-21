@@ -212,7 +212,7 @@
         <span id="nrc_count" style="color:#666;margin-left:10px;font-size:12px;"></span>
       </div>
       <div>
-        <button id="nrc_settingsBtn" type="button" title="Settings" style="cursor:pointer;padding:2px 7px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:13px;line-height:1.4;">⚙</button>
+        <button id="nrc_settingsBtn" type="button" title="Settings" style="cursor:pointer;padding:1px 7px;background:#2a2a2a;color:#fff;border:1px solid #4a4a4a;border-radius:3px;font-size:12px;font-weight:bold;line-height:1.4;">⚙</button>
         <button id="nrc_helpBtn" type="button" title="Help" style="cursor:pointer;padding:1px 7px;background:#1a2a1a;color:#3a3;border:1px solid #2a4a2a;border-radius:3px;font-size:12px;font-weight:bold;line-height:1.4;margin-left:4px;">?</button>
       </div>
     </div>
