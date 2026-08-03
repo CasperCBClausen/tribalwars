@@ -1,9 +1,15 @@
+/*
+Disclaimer
+By uploading a user-generated mod for use with Tribal Wars, the creator grants InnoGames a perpetual, irrevocable, worldwide, royalty-free, non-exclusive license to use, reproduce, distribute, publicly display, modify, and create derivative works of the mod. This license permits InnoGames to incorporate the mod into any aspect of the game and its related services, including promotional and commercial endeavors, without any requirement for compensation or attribution to the uploader. The uploader represents and warrants that they have the legal right to grant this license and that the mod does not infringe upon any third-party rights. German law applies.
+*/
+
 // NeilBReportsToClipboard
 (function () {
 
   /* ── Constants ── */
 
-  const worldMatch = location.hostname.match(/^(\w+)\.tribalwars\./);
+  // Server-agnostic world parser (id is the first hostname label on every TW domain -> en130.tribalwars.net, es100.guerrastribales.es, de245.die-staemme.de, ...)
+  const worldMatch = location.hostname.match(/^(\w+)\./);
   const world = worldMatch ? worldMatch[1] : null;
 
   const MONTHS = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
@@ -12,10 +18,19 @@
   /* ── Parsing Helpers ── */
 
   function parseTWDate(str) {
-    const m = str.replace(/\s+/g,' ').trim()
-      .match(/(\w{3})\s+(\d+),\s+(\d{4})\s+(\d+):(\d+):(\d+)/);
-    if (!m || !(m[1] in MONTHS)) return null;
-    return Date.UTC(+m[3], MONTHS[m[1]], +m[2], +m[4], +m[5], +m[6]);
+    const s = str.replace(/\s+/g,' ').trim();
+    // EN date format: "Mar 3, 2026 14:12:33"
+    let m = s.match(/(\w{3})\s+(\d+),\s+(\d{4})\s+(\d+):(\d+):(\d+)/);
+    if (m && m[1] in MONTHS) {
+      return Date.UTC(+m[3], MONTHS[m[1]], +m[2], +m[4], +m[5], +m[6]);
+    }
+    // ES date format: "02.08.26 17:48:39" (DD.MM.YY, optional trailing :ms)
+    m = s.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})\s+(\d+):(\d+):(\d+)/);
+    if (m) {
+      const year = +m[3] < 100 ? 2000 + +m[3] : +m[3];
+      return Date.UTC(year, +m[2] - 1, +m[1], +m[4], +m[5], +m[6]);
+    }
+    return null;
   }
 
   // Only returns units with count > 0; returns null if nothing found
@@ -31,6 +46,13 @@
     return Object.keys(u).length ? u : null;
   }
 
+  // A scout run is spies, optionally with a token ram/catapult escort for fakes at slower speeds.
+  function isScoutRun(troops) {
+    if (!troops || !troops.spy) return false;
+    if (Object.keys(troops).some(u => u !== 'spy' && u !== 'ram' && u !== 'catapult')) return false;
+    return (troops.ram || 0) + (troops.catapult || 0) <= 5;
+  }
+
   // Drop keys whose value is null, undefined, empty string, or empty object
   function clean(obj) {
     const out = {};
@@ -43,8 +65,7 @@
   }
 
   /* ── Report Parser ── */
-  // Parameterized on a Document so it can run against fetch()-ed report pages
-  // instead of only window.document.
+  // Parameterized on a Document so it can run against fetch()-ed report pages instead of only window.document.
 
   function parseParticipant(doc, r, tblId, unitTblId, pfx) {
     const tbl = doc.getElementById(tblId);
@@ -59,7 +80,7 @@
       const txt = vLink.textContent || '';
       const cm = txt.match(/\((\d+)\|(\d+)\)/);
       if (cm) { r[pfx + 'X'] = parseInt(cm[1]); r[pfx + 'Y'] = parseInt(cm[2]); }
-      const name = txt.replace(/\s*\(\d+\|\d+\)\s*K\d+/, '').trim();
+      const name = txt.replace(/\s*\(\d+\|\d+\)\s*[A-Z]\d+/, '').trim();
       if (name) r[pfx + 'VillageName'] = name;
     }
 
@@ -73,13 +94,13 @@
 
     const unitTbl = doc.getElementById(unitTblId);
     if (unitTbl) {
-      for (const row of unitTbl.querySelectorAll('tr')) {
-        const lbl = row.querySelector('td:first-child')?.textContent?.trim() || '';
-        const u = extractUnits(row);
-        if (!u) continue;
-        if (lbl.startsWith('Quantity')) r[pfx + 'Troops'] = u;
-        else if (lbl.startsWith('Losses')) r[pfx + 'Losses'] = u;
-      }
+      // Row labels are localized ("Quantity:"/"Cantidad:"...), but the row order is fixed: first unit-count row = quantity, second = losses.
+      const rows = [...unitTbl.querySelectorAll('tr')]
+        .filter(row => row.querySelector('[data-unit-count]'));
+      const troops = extractUnits(rows[0]);
+      if (troops) r[pfx + 'Troops'] = troops;
+      const losses = extractUnits(rows[1]);
+      if (losses) r[pfx + 'Losses'] = losses;
     }
   }
 
@@ -98,15 +119,17 @@
       }
     }
 
-    // Timestamp
+    // Timestamp. Direct-child cells + exact label match only: outer layout rows contain the whole report as one blob, where a loose match would pick up the first date on the page (e.g. "Hora de envío" = launch time).
     outer: for (const row of doc.querySelectorAll('tr')) {
-      const cells = [...row.querySelectorAll('td')];
-      if (cells.length >= 2 && /battle\s+time/i.test(cells[0].textContent)) {
+      const cells = [...row.querySelectorAll(':scope > td')];
+      if (cells.length >= 2
+          && /^(?:battle\s+time|hora\s+de\s+batalla):?$/i.test(cells[0].textContent.trim())) {
         const ts = parseTWDate(cells[1].textContent);
         if (ts) { r.reportTimestamp = ts; break; }
       }
       for (const td of cells) {
-        const m = td.textContent.match(/Sent:\s*(\w{3}\s+\d+,\s+\d{4}\s+\d+:\d+:\d+)/);
+        // Anchored, so "Reenviado el:" (forwarded) and blob cells can't match
+        const m = td.textContent.trim().match(/^(?:Sent|Enviado):\s*(.+)/i);
         if (m) {
           const ts = parseTWDate(m[1]);
           if (ts) { r.reportTimestamp = ts; break outer; }
@@ -114,32 +137,33 @@
       }
     }
 
-    // Report type
-    const h3txt = (doc.querySelector('h3')?.textContent || '').toLowerCase();
-    if (h3txt) {
-      r.reportType = h3txt.includes('scout') ? 'scout'
-                   : h3txt.includes('attack') ? 'attack'
-                   : 'combat';
-    }
-
-    // Luck
+    // Luck — the clover icon: klee.webp = positive luck, klee_grau.webp (greyed out) = negative.
     const luckBold = doc.querySelector('#attack_luck b');
     if (luckBold) {
       const pct = parseFloat(luckBold.textContent);
       if (!isNaN(pct)) {
-        r.luck = doc.querySelector('#attack_luck img[alt="Luck"]') ? pct : -pct;
+        const negative = [...doc.querySelectorAll('#attack_luck img')]
+          .some(img => (img.getAttribute('src') || '').includes('klee_grau'));
+        r.luck = negative ? -pct : pct;
       }
     }
 
     // Morale
     for (const h4 of doc.querySelectorAll('h4')) {
-      const m = h4.textContent.match(/Morale:\s*(\d+)/);
+      const m = h4.textContent.match(/Moral(?:e)?:\s*(\d+)/);
       if (m) { r.morale = parseInt(m[1]); break; }
     }
 
     // Attacker / Defender
     parseParticipant(doc, r, 'attack_info_att', 'attack_info_att_units', 'attacker');
     parseParticipant(doc, r, 'attack_info_def', 'attack_info_def_units', 'defender');
+
+    // Report type — h3 wording is localized (and lost on renamed reports), so derive it from the attack itself. Must run after the participants are parsed: it reads attackerTroops.
+    if (r.attackerTroops) {
+      r.reportType = isScoutRun(r.attackerTroops) ? 'scout' : 'attack';
+    } else if (doc.querySelector('h3')) {
+      r.reportType = 'combat';
+    }
 
     // Troops away from village
     const awayTbl = doc.getElementById('attack_spy_away');
@@ -148,7 +172,7 @@
       if (u) r.defenderTroopsAway = u;
     }
 
-    // Buildings
+    // Buildings — hidden JSON input when present, otherwise the visible spy tables (building id taken from the icon path, which isn't localized)
     const bldInput = doc.getElementById('attack_spy_building_data');
     if (bldInput?.value) {
       try {
@@ -162,13 +186,25 @@
         }
       } catch (_) {}
     }
+    if (!r.buildings) {
+      const bld = {};
+      doc.querySelectorAll('#attack_spy_buildings_left tr, #attack_spy_buildings_right tr')
+        .forEach(row => {
+          const src = row.querySelector('img')?.getAttribute('src') || '';
+          const idM = src.match(/buildings\/(\w+)\.(?:webp|png)/);
+          const lvl = parseInt(row.querySelector('td:last-child')?.textContent);
+          if (idM && !isNaN(lvl)) bld[idM[1]] = lvl;
+        });
+      if (Object.keys(bld).length) r.buildings = bld;
+    }
 
     // Resources + relic
     const resTbl = doc.getElementById('attack_spy_resources');
     if (resTbl) {
-      const get = title => resTbl.querySelector(`.icon[title="${title}"]`)?.closest('.nowrap');
+      // Icon classes (wood/stone/iron) are locale-independent.
+      const get = cls => resTbl.querySelector(`.icon.${cls}`)?.closest('.nowrap');
       const parse = el => el ? parseInt(el.textContent.replace(/\D/g, '')) || 0 : 0;
-      const w = get('Wood'), c = get('Clay'), ir = get('Iron');
+      const w = get('wood'), c = get('stone'), ir = get('iron');
       if (w || c || ir) r.resources = { wood: parse(w), clay: parse(c), iron: parse(ir) };
       const relicEl = resTbl.querySelector('.inline-relic');
       if (relicEl) {
